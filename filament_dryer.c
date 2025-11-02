@@ -34,13 +34,23 @@
 // Configurações da estufa
 #define UPDATE_INTERVAL_MS 5000  // Atualiza a cada 5 segundos
 #define TEMP_TARGET_DEFAULT 45   // Temperatura alvo padrão (°C)
+#define TEMP_MIN 40              // Temperatura mínima (°C)
+#define TEMP_MAX 85              // Temperatura máxima (°C)
+#define TEMP_STEP_SINGLE 1       // Incremento simples (°C)
+#define TEMP_STEP_FAST 5         // Incremento rápido quando segurando (°C)
 #define ENERGY_RESET_HOURS 24    // Reset do consumo a cada 24h
+
+// Configurações do botão
+#define BUTTON_DEBOUNCE_MS 35    // Tempo de debounce (ms)
+#define BUTTON_HOLD_THRESHOLD_MS 650   // Tempo para ativar modo rápido (ms)
+#define BUTTON_FAST_REPEAT_MS 470      // Intervalo do incremento rápido (ms)
 
 // Pinos dos sensores (ajuste conforme sua montagem)
 #define DHT22_PIN 22            // GPIO para DHT22
 #define ENERGY_SENSOR_PIN 26    // GPIO ADC para sensor de energia
 #define HEATER_PIN 15           // GPIO para controle do hotend
 #define FAN_PIN 14              // GPIO para controle da ventoinha
+#define BUTTON_PIN 16           // GPIO para botão de ajuste temperatura
 
 // A estrutura dryer_data_t agora está definida em display_interface.h
 
@@ -52,6 +62,19 @@ static bool dht22_initialized = false;
 static uint32_t dht22_error_count = 0;
 static uint32_t dht22_success_count = 0;
 static bool dht22_sensor_ok = false;    // Status crítico do sensor
+
+// Variáveis para controle do botão com debouncing
+static bool button_state = false;           // Estado atual do botão
+static bool button_prev_state = false;      // Estado anterior do botão
+static uint32_t button_last_change = 0;     // Última mudança de estado
+static uint32_t button_press_start = 0;     // Início do pressionamento
+static bool button_debounced = false;       // Estado após debouncing
+static bool button_was_pressed = false;     // Flag para detectar press único
+static bool button_in_fast_mode = false;    // Modo incremento rápido ativo
+static uint32_t button_last_fast_increment = 0;  // Último incremento rápido
+
+// Variáveis para controle PWM
+static float current_pwm_percent = 0.0;     // Potência atual aplicada (0-100%)
 
 #define DHT22_READ_INTERVAL_MS 2000     // DHT22 precisa de pelo menos 2s entre leituras
 #define DHT22_MAX_CONSECUTIVE_ERRORS 3  // Máximo de erros consecutivos antes de PARADA DE SEGURANÇA
@@ -76,10 +99,8 @@ void read_dht22(float *temperature, float *humidity) {
     if (current_time - last_dht22_read >= DHT22_READ_INTERVAL_MS) {
         last_dht22_read = current_time;
         
-        printf("Tentando ler DHT22...\n");
         float new_temp, new_hum;
         dht22_result_t result = dht22_read(&new_temp, &new_hum);
-        printf("Resultado da leitura DHT22: %d\n", result);
         
         if (result == DHT22_OK) {
             // ✅ SENSOR OK - Sistema pode operar normalmente
@@ -131,6 +152,143 @@ void dht22_recovery_attempt(void) {
     }
 }
 
+// Inicialização do botão
+void button_init(void) {
+    gpio_init(BUTTON_PIN);
+    gpio_set_dir(BUTTON_PIN, GPIO_IN);
+    gpio_pull_up(BUTTON_PIN);  // Pull-up interno (botão conecta ao GND)
+}
+
+// Debouncing digital do botão
+bool button_read_debounced(void) {
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+    bool raw_state = !gpio_get(BUTTON_PIN);  // Inverte porque usa pull-up
+    
+    // Detectar mudança de estado
+    if (raw_state != button_prev_state) {
+        button_last_change = current_time;
+        button_prev_state = raw_state;
+    }
+    
+    // Aplicar debouncing
+    if (current_time - button_last_change >= BUTTON_DEBOUNCE_MS) {
+        if (button_debounced != raw_state) {
+            button_debounced = raw_state;
+            
+            // Detectar início do pressionamento
+            if (button_debounced && !button_state) {
+                button_press_start = current_time;
+            }
+            
+            button_state = button_debounced;
+            return true;  // Mudança de estado detectada
+        }
+    }
+    
+    return false;  // Sem mudança
+}
+
+// Verificar se botão foi pressionado (edge detection) - DEPRECATED
+// Agora usamos lógica avançada diretamente em adjust_target_temperature()
+bool button_pressed(void) {
+    if (button_read_debounced()) {
+        return button_state;  // True se foi pressionado
+    }
+    return false;
+}
+
+// Ajustar temperatura alvo com botão (modo melhorado - incrementa ao soltar)
+void adjust_target_temperature(dryer_data_t *data) {
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+    bool state_changed = button_read_debounced();
+    
+    // Detectar início do pressionamento
+    if (state_changed && button_state) {
+        // Botão foi pressionado - apenas marcar início (sem incrementar ainda)
+        button_was_pressed = true;
+        button_in_fast_mode = false;
+        button_press_start = current_time;
+        
+        printf("🔘 Botão pressionado - aguardando soltar...\n");
+        return;
+    }
+    
+    // Detectar fim do pressionamento (AQUI QUE INCREMENTA)
+    if (state_changed && !button_state) {
+        // Botão foi solto - calcular ação baseada no tempo
+        uint32_t press_duration = current_time - button_press_start;
+        button_was_pressed = false;
+        button_in_fast_mode = false;
+        
+        if (press_duration < BUTTON_HOLD_THRESHOLD_MS) {
+            // Pressão curta: +1°C
+            data->temp_target += TEMP_STEP_SINGLE;
+            if (data->temp_target > TEMP_MAX) {
+                data->temp_target = TEMP_MIN;
+            }
+            printf("🌡️ Pressão curta: +1°C → %.0f°C\n", data->temp_target);
+        } else {
+            // Pressão longa: +5°C (incremento final do modo rápido)
+            data->temp_target += TEMP_STEP_FAST;
+            if (data->temp_target > TEMP_MAX) {
+                data->temp_target = TEMP_MIN;
+            }
+            printf("🌡️ Modo rápido finalizado: +5°C → %.0f°C\n", data->temp_target);
+        }
+        return;
+    }
+    
+    // Botão ainda pressionado - verificar se ativa modo rápido
+    if (button_state && button_was_pressed) {
+        uint32_t press_duration = current_time - button_press_start;
+        
+        // Ativar modo rápido após BUTTON_HOLD_THRESHOLD_MS
+        if (press_duration >= BUTTON_HOLD_THRESHOLD_MS) {
+            if (!button_in_fast_mode) {
+                button_in_fast_mode = true;
+                button_last_fast_increment = current_time;
+                printf("🚀 Modo rápido ativado! (incremente ao soltar)\n");
+                
+                // Primeiro incremento rápido imediato ao ativar modo
+                data->temp_target += TEMP_STEP_FAST;
+                if (data->temp_target > TEMP_MAX) {
+                    data->temp_target = TEMP_MIN;
+                }
+                printf("🌡️ Modo rápido: +5°C → %.0f°C\n", data->temp_target);
+            }
+            
+            // Incrementos rápidos adicionais a cada BUTTON_FAST_REPEAT_MS
+            if (current_time - button_last_fast_increment >= BUTTON_FAST_REPEAT_MS) {
+                button_last_fast_increment = current_time;
+                
+                data->temp_target += TEMP_STEP_FAST;
+                if (data->temp_target > TEMP_MAX) {
+                    data->temp_target = TEMP_MIN;
+                }
+                
+                printf("🌡️ Modo rápido: +5°C → %.0f°C\n", data->temp_target);
+            }
+        }
+    }
+}
+
+// Calcular PWM atual baseado no estado do heater
+void update_pwm_indication(dryer_data_t *data) {
+    if (!is_dht22_sensor_safe()) {
+        // Modo segurança - PWM sempre 0%
+        data->pwm_percent = 0.0;
+    } else if (data->heater_on) {
+        // Histerese: 100% quando ligado
+        data->pwm_percent = 100.0;
+        
+        // TODO: Quando implementar PID, usar valor real do PID:
+        // data->pwm_percent = pid_output_percent;
+    } else {
+        // Desligado
+        data->pwm_percent = 0.0;
+    }
+}
+
 // Simulação do sensor de energia (substitua pela implementação real)
 float read_energy_sensor() {
     // TODO: Implementar leitura real do sensor de energia
@@ -160,6 +318,9 @@ void dryer_init(void) {
     gpio_set_dir(HEATER_PIN, GPIO_OUT);
     gpio_set_dir(FAN_PIN, GPIO_OUT);
     
+    // Inicializar botão
+    button_init();
+    
     // Inicializar ADC para sensor de energia
     adc_init();
     adc_gpio_init(ENERGY_SENSOR_PIN);
@@ -169,6 +330,7 @@ void dryer_init(void) {
     control_fan(false);
     
     printf("Sistema da estufa inicializado!\n");
+    printf("Botão de ajuste temperatura no GPIO %d\n", BUTTON_PIN);
 }
 
 // Perform initialisation
@@ -215,21 +377,23 @@ void temperature_control(dryer_data_t *data) {
     }
     
     // Controle normal de temperatura (apenas se sensor OK)
-    // Histerese de 2°C para evitar liga/desliga frequente
+    // Histerese de 2°C otimizada para amostragem DHT22 (2-3s)
+    // TODO: Substituir por PID quando hardware estiver disponível
     if (data->temperature < (data->temp_target - 2.0)) {
         data->heater_on = true;
         data->fan_on = true;  // Ventilação forçada quando aquecendo
     } else if (data->temperature > (data->temp_target + 1.0)) {
         data->heater_on = false;
         data->fan_on = true;  // Continua ventilando para resfriar
-    } else if (data->temperature > data->temp_target) {
-        data->heater_on = false;
-        // Ventoinha continua ligada se estava aquecendo
     }
+    // Zona morta: entre (target-2) e (target) mantém estado atual
     
     // Controla os hardware (apenas se sensor está OK)
     control_heater(data->heater_on);
     control_fan(data->fan_on);
+    
+    // Atualizar indicação PWM
+    update_pwm_indication(data);
 }
 
 int main() {
@@ -264,7 +428,8 @@ int main() {
         .heater_on = false,
         .fan_on = false,
         .sensor_safe = true,  // Assume sensor OK no início
-        .uptime = 0
+        .uptime = 0,
+        .pwm_percent = 0.0
     };
     
     printf("Sistema iniciado! Temperatura alvo: %.0f°C\n", dryer_data.temp_target);
@@ -303,6 +468,9 @@ int main() {
     prev_data.fan_on = !dryer_data.fan_on;       // Força atualização
     prev_data.sensor_safe = !dryer_data.sensor_safe; // Força atualização
     prev_data.uptime = -1;         // Força atualização
+    prev_data.pwm_percent = -1;    // Força atualização PWM
+    
+    printf("🎯 Temperatura alvo inicial: %.0f°C\n", dryer_data.temp_target);
     
     printf("Atualizando interface inicial...\n");
     update_interface_smart(&dryer_data, &prev_data);
@@ -315,7 +483,6 @@ int main() {
         
         // Atualiza dados a cada UPDATE_INTERVAL_MS
         if (current_time - last_update >= UPDATE_INTERVAL_MS) {
-            printf("Iniciando ciclo de atualização...\n");
             last_update = current_time;
             
             // Salvar valores anteriores
@@ -352,14 +519,32 @@ int main() {
             // Atualizar display de forma inteligente (apenas o que mudou)
             update_interface_smart(&dryer_data, &prev_data);
             
-            // Log no serial com status de segurança
+            // Log no serial com status de segurança e PWM
             const char* safety_status = is_dht22_sensor_safe() ? "SAFE" : "⚠️UNSAFE";
-            printf("T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s Fan:%s [%s]\n",
+            printf("T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) Fan:%s [%s]\n",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
-                   dryer_data.heater_on ? "ON" : "OFF",
+                   dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,
                    dryer_data.fan_on ? "ON" : "OFF",
                    safety_status);
+        }
+        
+        // Verificar botão de ajuste de temperatura (fora do intervalo principal para resposta rápida)
+        static float last_target_logged = -1;
+        float old_target = dryer_data.temp_target;  // Salvar valor antes
+        adjust_target_temperature(&dryer_data);
+        
+        // Se temperatura alvo mudou, atualizar display imediatamente
+        if (dryer_data.temp_target != old_target) {
+            printf("🎮 MAIN: Temperatura alvo mudou para %.0f°C\n", dryer_data.temp_target);
+            
+            // Atualizar display imediatamente (sem esperar os 5s)
+            dryer_data_t temp_prev_data = prev_data;
+            temp_prev_data.temp_target = old_target;  // Usar valor anterior
+            update_temperature_display(dryer_data.temperature, dryer_data.temp_target, 
+                                     temp_prev_data.temperature, temp_prev_data.temp_target);
+            
+            last_target_logged = dryer_data.temp_target;
         }
         
         // LED de status (diferentes padrões para diferentes estados)

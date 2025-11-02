@@ -1,6 +1,7 @@
 #include "display_interface.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 // Desenha a interface estática (uma vez só)
 void draw_static_interface(void) {
@@ -20,6 +21,7 @@ void draw_static_interface(void) {
     st7789_draw_string(10, 55, "TEMPERATURA", YELLOW, BLACK);
     st7789_draw_string(15, 70, "Atual:", WHITE, BLACK);
     st7789_draw_string(15, 85, "Alvo:", WHITE, BLACK);
+    st7789_draw_string(160, 85, "(BTN)", GREEN, BLACK);
     
     st7789_draw_string(10, 125, "UMIDADE", CYAN, BLACK);
     
@@ -40,7 +42,8 @@ void update_temperature_display(float temperature, float target, float prev_temp
     char buffer[32];
     
     // Só atualiza se mudou
-    if (temperature != prev_temp) {
+    // Usar epsilon para comparação de floats
+    if (fabs(temperature - prev_temp) > 0.05) {  // Mudança > 0.05°C
         sprintf(buffer, "%.1fC  ", temperature); // Espaços extras para limpar
         // Apaga área anterior e desenha novo
         st7789_fill_rect(70, 70, 80, 8, BLACK);
@@ -56,9 +59,10 @@ void update_temperature_display(float temperature, float target, float prev_temp
         }
     }
     
-    if (target != prev_target) {
-        sprintf(buffer, "%.0fC  ", target);
-        st7789_fill_rect(60, 85, 80, 8, BLACK);
+    // Usar epsilon para temperatura alvo também
+    if (fabs(target - prev_target) > 0.05) {  // Mudança > 0.05°C
+        sprintf(buffer, "%.0fC   ", target);  // Espaços extras para limpar
+        st7789_fill_rect(60, 85, 90, 8, BLACK);  // Área maior para limpeza
         st7789_draw_string(60, 85, buffer, GREEN, BLACK);
     }
 }
@@ -99,8 +103,12 @@ void update_energy_display(float current, float total_24h, float prev_current, f
     }
 }
 
-// Atualiza apenas o status
-void update_status_display(bool heater_on, bool fan_on, bool prev_heater, bool prev_fan) {
+// Atualiza apenas o status com PWM
+void update_status_display(bool heater_on, bool fan_on, float pwm_percent, 
+                          bool prev_heater, bool prev_fan, float prev_pwm) {
+    char buffer[32];
+    
+    // Status do heater
     if (heater_on != prev_heater) {
         st7789_fill_rect(15, 250, 80, 8, BLACK);
         if (heater_on) {
@@ -110,6 +118,27 @@ void update_status_display(bool heater_on, bool fan_on, bool prev_heater, bool p
         }
     }
     
+    // Indicador PWM (abaixo do status)
+    if (pwm_percent != prev_pwm) {
+        sprintf(buffer, "PWM: %3.0f%%    ", pwm_percent);
+        st7789_fill_rect(15, 265, 80, 8, BLACK);
+        
+        // Cor baseada na potência
+        uint16_t pwm_color;
+        if (pwm_percent > 75.0) {
+            pwm_color = RED;        // Alta potência
+        } else if (pwm_percent > 25.0) {
+            pwm_color = YELLOW;     // Média potência
+        } else if (pwm_percent > 0.0) {
+            pwm_color = GREEN;      // Baixa potência
+        } else {
+            pwm_color = WHITE;      // Desligado
+        }
+        
+        st7789_draw_string(15, 265, buffer, pwm_color, BLACK);
+    }
+    
+    // Status da ventoinha
     if (fan_on != prev_fan) {
         st7789_fill_rect(120, 250, 100, 8, BLACK);
         if (fan_on) {
@@ -128,8 +157,8 @@ void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
         int minutes = (uptime % 3600) / 60;
         sprintf(buffer, "Uptime: %02d:%02d  ", hours, minutes);
         
-        st7789_fill_rect(10, 280, 150, 8, BLACK);
-        st7789_draw_string(10, 280, buffer, WHITE, BLACK);
+        st7789_fill_rect(10, 285, 150, 8, BLACK);
+        st7789_draw_string(10, 285, buffer, WHITE, BLACK);
     }
 }
 
@@ -144,8 +173,8 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
     update_energy_display(data->energy_current, data->energy_24h,
                          prev_data->energy_current, prev_data->energy_24h);
     
-    update_status_display(data->heater_on, data->fan_on,
-                         prev_data->heater_on, prev_data->fan_on);
+    update_status_display(data->heater_on, data->fan_on, data->pwm_percent,
+                         prev_data->heater_on, prev_data->fan_on, prev_data->pwm_percent);
     
     update_uptime_display(data->uptime, prev_data->uptime);
 }
@@ -168,4 +197,9 @@ void display_test_characters(void) {
     st7789_draw_string(10, 50, "TUVWXYZ0123456789", GREEN, BLACK);
     st7789_draw_string(10, 65, "abcdefghijklmnopqrs", CYAN, BLACK);
     st7789_draw_string(10, 80, "tuvwxyz!@#$%^&*()", CYAN, BLACK);
+    
+    // Teste específico dos colchetes
+    st7789_draw_string(10, 100, "Colchetes: [BTN]", YELLOW, BLACK);
+    st7789_draw_string(10, 115, "Parenteses: (BTN)", RED, BLACK);
+    st7789_draw_string(10, 130, "Chars: []{}()<>", WHITE, BLACK);
 }

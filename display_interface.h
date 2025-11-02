@@ -16,6 +16,7 @@ typedef struct {
     bool fan_on;            // Status da ventoinha
     bool sensor_safe;       // Status crítico do sensor DHT22
     uint32_t uptime;        // Tempo ligado (segundos)
+    float pwm_percent;      // Potência PWM aplicada (0-100%)
 } dryer_data_t;
 
 // Funções públicas do módulo de interface
@@ -28,7 +29,8 @@ void display_test_characters(void);
 void update_temperature_display(float temperature, float target, float prev_temp, float prev_target);
 void update_humidity_display(float humidity, float prev_humidity);
 void update_energy_display(float current, float total_24h, float prev_current, float prev_total);
-void update_status_display(bool heater_on, bool fan_on, bool prev_heater, bool prev_fan);
+void update_status_display(bool heater_on, bool fan_on, float pwm_percent, 
+                          bool prev_heater, bool prev_fan, float prev_pwm);
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime);
 
 #endif // DISPLAY_INTERFACE_H

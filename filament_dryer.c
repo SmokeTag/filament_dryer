@@ -15,6 +15,7 @@
 #include "pico/stdlib.h"
 #include "st7789_display.h"
 #include "display_interface.h"
+#include "dht22.h"
 #include "hardware/adc.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -43,25 +44,91 @@
 
 // A estrutura dryer_data_t agora está definida em display_interface.h
 
-// Simulação do DHT22 (substitua pela biblioteca real do DHT22)
+// Variáveis para controle de leitura do DHT22
+static uint32_t last_dht22_read = 0;
+static float last_temperature = 25.0;  // Valores padrão
+static float last_humidity = 50.0;
+static bool dht22_initialized = false;
+static uint32_t dht22_error_count = 0;
+static uint32_t dht22_success_count = 0;
+static bool dht22_sensor_ok = false;    // Status crítico do sensor
+
+#define DHT22_READ_INTERVAL_MS 2000     // DHT22 precisa de pelo menos 2s entre leituras
+#define DHT22_MAX_CONSECUTIVE_ERRORS 3  // Máximo de erros consecutivos antes de PARADA DE SEGURANÇA
+
+// Leitura CRÍTICA do DHT22 - SEM SIMULAÇÃO
+// Se o sensor falhar, o aquecedor DEVE ser desligado por segurança
 void read_dht22(float *temperature, float *humidity) {
-    // TODO: Implementar leitura real do DHT22
-    // Por enquanto, simulando valores realistas
-    static float sim_temp = 25.0;
-    static float sim_hum = 60.0;
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
-    // Simula variação pequena nos valores
-    sim_temp += ((float)(rand() % 21) - 10) / 10.0; // ±1°C
-    sim_hum += ((float)(rand() % 11) - 5) / 10.0;   // ±0.5%
+    // Inicializar DHT22 na primeira chamada
+    if (!dht22_initialized) {
+        dht22_init(DHT22_PIN);
+        dht22_initialized = true;
+        printf("*** DHT22 SENSOR CRÍTICO inicializado no GPIO %d ***\n", DHT22_PIN);
+        // SEM sleep_ms aqui - será controlado pelo intervalo de leitura
+        last_dht22_read = current_time; // Marcar tempo para próxima leitura
+        dht22_sensor_ok = true; // Assumir OK inicialmente
+        printf("DHT22 pronto para leituras!\n");
+    }
     
-    // Limita valores realistas
-    if (sim_temp < 20.0) sim_temp = 20.0;
-    if (sim_temp > 80.0) sim_temp = 80.0;
-    if (sim_hum < 10.0) sim_hum = 10.0;
-    if (sim_hum > 90.0) sim_hum = 90.0;
+    // Verificar se já passou tempo suficiente desde a última leitura
+    if (current_time - last_dht22_read >= DHT22_READ_INTERVAL_MS) {
+        last_dht22_read = current_time;
+        
+        printf("Tentando ler DHT22...\n");
+        float new_temp, new_hum;
+        dht22_result_t result = dht22_read(&new_temp, &new_hum);
+        printf("Resultado da leitura DHT22: %d\n", result);
+        
+        if (result == DHT22_OK) {
+            // ✅ SENSOR OK - Sistema pode operar normalmente
+            last_temperature = new_temp;
+            last_humidity = new_hum;
+            dht22_success_count++;
+            dht22_error_count = 0; // Reset contador de erros
+            dht22_sensor_ok = true;
+            
+            // Log ocasional de sucesso
+            if (dht22_success_count % 20 == 1) {
+                printf("DHT22 ✅ OK: %.1f°C, %.1f%% (sucessos: %lu)\n", 
+                       new_temp, new_hum, dht22_success_count);
+            }
+        } else {
+            // ❌ ERRO CRÍTICO - Incrementar contador
+            dht22_error_count++;
+            printf("❌ DHT22 ERRO CRÍTICO #%lu: %s\n", 
+                   dht22_error_count, dht22_error_string(result));
+            
+            // PARADA DE SEGURANÇA se muitos erros consecutivos
+            if (dht22_error_count >= DHT22_MAX_CONSECUTIVE_ERRORS) {
+                dht22_sensor_ok = false;
+                printf("\n🚨 ALERTA DE SEGURANÇA: DHT22 FALHOU! 🚨\n");
+                printf("🔥 AQUECEDOR DESABILITADO POR SEGURANÇA\n");
+                printf("🔧 VERIFIQUE CONEXÕES DO SENSOR\n");
+                printf("📊 Erros consecutivos: %lu\n\n", dht22_error_count);
+            }
+        }
+    }
     
-    *temperature = sim_temp;
-    *humidity = sim_hum;
+    // IMPORTANTE: Retornar últimos valores mesmo com erro
+    // O controle de segurança é feito via dht22_sensor_ok
+    *temperature = last_temperature;
+    *humidity = last_humidity;
+}
+
+// Nova função para verificar status de segurança do sensor
+bool is_dht22_sensor_safe(void) {
+    return dht22_sensor_ok;
+}
+
+// Função para tentar recuperar sensor após erro
+void dht22_recovery_attempt(void) {
+    if (!dht22_sensor_ok && dht22_error_count >= DHT22_MAX_CONSECUTIVE_ERRORS) {
+        printf("🔄 Tentativa de recuperação do DHT22...\n");
+        dht22_error_count = 0; // Reset para dar nova chance
+        dht22_sensor_ok = true; // Permitir nova tentativa
+    }
 }
 
 // Simulação do sensor de energia (substitua pela implementação real)
@@ -80,6 +147,10 @@ void control_heater(bool enable) {
 void control_fan(bool enable) {
     gpio_put(FAN_PIN, enable);
 }
+
+// Declarações das funções de segurança do DHT22
+bool is_dht22_sensor_safe(void);
+void dht22_recovery_attempt(void);
 
 // Inicialização dos componentes
 void dryer_init(void) {
@@ -127,8 +198,23 @@ void pico_set_led(bool led_on) {
 
 // Funções de display movidas para display_interface.c
 
-// Controle automático da temperatura
+// Controle automático da temperatura COM SEGURANÇA CRÍTICA
 void temperature_control(dryer_data_t *data) {
+    // 🚨 VERIFICAÇÃO DE SEGURANÇA CRÍTICA - DHT22 deve estar funcionando
+    if (!is_dht22_sensor_safe()) {
+        // PARADA DE EMERGÊNCIA - Desligar aquecedor imediatamente
+        data->heater_on = false;
+        data->fan_on = true;  // Manter ventilação para resfriamento de segurança
+        
+        // Aplicar controles de hardware imediatamente
+        control_heater(false);  // FORÇA desligamento do aquecedor
+        control_fan(true);      // FORÇA ligamento da ventoinha
+        
+        printf("🚨 MODO SEGURANÇA: Aquecedor desabilitado - DHT22 falhou\n");
+        return; // Sair sem controle de temperatura
+    }
+    
+    // Controle normal de temperatura (apenas se sensor OK)
     // Histerese de 2°C para evitar liga/desliga frequente
     if (data->temperature < (data->temp_target - 2.0)) {
         data->heater_on = true;
@@ -141,7 +227,7 @@ void temperature_control(dryer_data_t *data) {
         // Ventoinha continua ligada se estava aquecendo
     }
     
-    // Controla os hardware
+    // Controla os hardware (apenas se sensor está OK)
     control_heater(data->heater_on);
     control_fan(data->fan_on);
 }
@@ -177,21 +263,28 @@ int main() {
         .energy_current = 0.0,
         .heater_on = false,
         .fan_on = false,
+        .sensor_safe = true,  // Assume sensor OK no início
         .uptime = 0
     };
     
     printf("Sistema iniciado! Temperatura alvo: %.0f°C\n", dryer_data.temp_target);
     
+    printf("Iniciando tela de teste de caracteres...\n");
     // Tela de inicialização com teste de caracteres
     display_test_characters();
+    printf("Tela de teste concluída, aguardando 5s...\n");
     sleep_ms(5000);  // Mostra por 5 segundos
     
+    printf("Iniciando tela de inicialização...\n");
     // Tela de inicialização normal
     display_init_screen();
+    printf("Tela de inicialização concluída, aguardando 3s...\n");
     sleep_ms(3000);
     
+    printf("Desenhando interface estática...\n");
     // Desenhar interface estática uma única vez
     draw_static_interface();
+    printf("Interface estática desenhada!\n");
     
     // Variáveis para controlar atualizações
     uint32_t last_update = 0;
@@ -208,15 +301,21 @@ int main() {
     prev_data.energy_24h = -999;   // Força atualização
     prev_data.heater_on = !dryer_data.heater_on; // Força atualização
     prev_data.fan_on = !dryer_data.fan_on;       // Força atualização
+    prev_data.sensor_safe = !dryer_data.sensor_safe; // Força atualização
     prev_data.uptime = -1;         // Força atualização
     
+    printf("Atualizando interface inicial...\n");
     update_interface_smart(&dryer_data, &prev_data);
+    printf("Interface inicial atualizada!\n");
+    
+    printf("Entrando no loop principal...\n");
     
     while (true) {
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
         
         // Atualiza dados a cada UPDATE_INTERVAL_MS
         if (current_time - last_update >= UPDATE_INTERVAL_MS) {
+            printf("Iniciando ciclo de atualização...\n");
             last_update = current_time;
             
             // Salvar valores anteriores
@@ -227,6 +326,7 @@ int main() {
             
             // Ler sensores
             read_dht22(&dryer_data.temperature, &dryer_data.humidity);
+            dryer_data.sensor_safe = is_dht22_sensor_safe();  // Atualizar status de segurança
             dryer_data.energy_current = read_energy_sensor();
             
             // Acumular energia (aproximação simples)
@@ -238,22 +338,43 @@ int main() {
                 printf("Reset do consumo diário\n");
             }
             
-            // Controle automático de temperatura
+            // Controle automático de temperatura (com verificação de segurança)
             temperature_control(&dryer_data);
+            
+            // Tentativa de recuperação do DHT22 a cada 30 segundos se falhou
+            static uint32_t last_recovery_attempt = 0;
+            if (!is_dht22_sensor_safe() && 
+                (current_time - last_recovery_attempt >= 30000)) {
+                last_recovery_attempt = current_time;
+                dht22_recovery_attempt();
+            }
             
             // Atualizar display de forma inteligente (apenas o que mudou)
             update_interface_smart(&dryer_data, &prev_data);
             
-            // Log no serial
-            printf("T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s Fan:%s\n",
+            // Log no serial com status de segurança
+            const char* safety_status = is_dht22_sensor_safe() ? "SAFE" : "⚠️UNSAFE";
+            printf("T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s Fan:%s [%s]\n",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
                    dryer_data.heater_on ? "ON" : "OFF",
-                   dryer_data.fan_on ? "ON" : "OFF");
+                   dryer_data.fan_on ? "ON" : "OFF",
+                   safety_status);
         }
         
-        // LED de status (pisca mais rápido quando aquecendo)
-        int led_interval = dryer_data.heater_on ? 250 : 1000;
+        // LED de status (diferentes padrões para diferentes estados)
+        int led_interval;
+        if (!is_dht22_sensor_safe()) {
+            // DHT22 falhou - pisca muito rápido (ALERTA)
+            led_interval = 100;
+        } else if (dryer_data.heater_on) {
+            // Aquecendo - pisca moderado
+            led_interval = 250;
+        } else {
+            // Normal - pisca lento
+            led_interval = 1000;
+        }
+        
         static uint32_t last_led = 0;
         static bool led_state = false;
         

@@ -39,6 +39,7 @@ add_executable(filament_dryer
     filament_dryer.c
     st7789_display.c
     display_interface.c
+    dht22.c
     )
 
 # pull in common dependencies

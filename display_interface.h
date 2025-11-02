@@ -14,6 +14,7 @@ typedef struct {
     float energy_current;   // Consumo atual (W)
     bool heater_on;         // Status do aquecedor
     bool fan_on;            // Status da ventoinha
+    bool sensor_safe;       // Status crítico do sensor DHT22
     uint32_t uptime;        // Tempo ligado (segundos)
 } dryer_data_t;
 

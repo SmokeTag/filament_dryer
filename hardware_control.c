@@ -16,22 +16,18 @@ static bool led_state = false;
 
 // Inicialização do módulo de controle de hardware
 void hardware_control_init(void) {
-    // Inicializar GPIOs de controle
+    // Inicializar GPIO de controle
     gpio_init(HEATER_PIN);
-    gpio_init(FAN_PIN);
     gpio_set_dir(HEATER_PIN, GPIO_OUT);
-    gpio_set_dir(FAN_PIN, GPIO_OUT);
     
     // Estado inicial seguro
     hardware_control_heater(false);
-    hardware_control_fan(false);
     
     // Reset variáveis do LED
     last_led_update = 0;
     led_state = false;
     
-    printf("Hardware Control: Inicializado (Heater: GPIO%d, Fan: GPIO%d)\n", 
-           HEATER_PIN, FAN_PIN);
+    printf("Hardware Control: Inicializado (Heater: GPIO%d)\n", HEATER_PIN);
 }
 
 // Controle do aquecedor
@@ -39,10 +35,7 @@ void hardware_control_heater(bool enable) {
     gpio_put(HEATER_PIN, enable);
 }
 
-// Controle da ventoinha
-void hardware_control_fan(bool enable) {
-    gpio_put(FAN_PIN, enable);
-}
+
 
 // Calcular PWM atual baseado no estado do heater
 void hardware_control_update_pwm(dryer_data_t *data, bool sensor_safe) {

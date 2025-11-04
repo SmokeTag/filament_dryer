@@ -119,16 +119,13 @@ static const uint8_t font8x8[128][8] = {
 };
 
 void st7789_init(void) {
-    printf("Configurando SPI...\n");
-    // Initialize SPI with lower speed for reliability
-    spi_init(SPI_PORT, 8000 * 1000); // 8 MHz (mais confiável que 62.5MHz)
+    // Initialize SPI
+    spi_init(SPI_PORT, 24000 * 1000); 
     
-    printf("Configurando pinos SPI...\n");
     // Set up SPI pins
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     
-    printf("Configurando pinos de controle...\n");
     // Set up control pins
     gpio_init(PIN_CS);
     gpio_init(PIN_DC);
@@ -144,19 +141,19 @@ void st7789_init(void) {
     gpio_put(PIN_RST, 1);  // RST high
     
     printf("Fazendo reset do display...\n");
-    // Reset sequence - mais tempo para estabilizar
+    // Reset sequence
     gpio_put(PIN_RST, 0);
-    sleep_ms(50);  // Mais tempo
+    sleep_ms(10);  // Reduzido de 50ms
     gpio_put(PIN_RST, 1);
-    sleep_ms(200); // Mais tempo
+    sleep_ms(50);  // Reduzido de 200ms
     
     printf("Enviando comandos de inicialização...\n");
     // Initialize ST7789
     st7789_write_cmd(ST7789_SWRESET);  // Software reset
-    sleep_ms(200); // Mais tempo
+    sleep_ms(50);  // Reduzido de 200ms
     
     st7789_write_cmd(ST7789_SLPOUT);   // Sleep out
-    sleep_ms(200); // Mais tempo
+    sleep_ms(50);  // Reduzido de 200ms
     
     st7789_write_cmd(ST7789_COLMOD);   // Set color mode
     st7789_write_data(0x55);           // 16-bit color (RGB565)
@@ -177,7 +174,7 @@ void st7789_init(void) {
     st7789_write_data(0x3F);           // 319 (320-1)
     
     st7789_write_cmd(ST7789_DISPON);   // Display on
-    sleep_ms(200); // Mais tempo
+    sleep_ms(20);  // Reduzido de 200ms
     
     printf("Display ST7789 inicializado com sucesso!\n");
     

@@ -27,7 +27,7 @@ void draw_static_interface(void) {
     
     st7789_draw_string(10, 180, "CONSUMO", MAGENTA, BLACK);
     st7789_draw_string(15, 195, "Atual:", WHITE, BLACK);
-    st7789_draw_string(15, 210, "24h:", WHITE, BLACK);
+    st7789_draw_string(15, 210, "Total:", WHITE, BLACK);
     
     st7789_draw_string(10, 235, "STATUS", WHITE, BLACK);
     
@@ -87,7 +87,7 @@ void update_humidity_display(float humidity, float prev_humidity) {
 }
 
 // Atualiza apenas os valores de energia
-void update_energy_display(float current, float total_24h, float prev_current, float prev_total) {
+void update_energy_display(float current, float total, float prev_current, float prev_total) {
     char buffer[32];
     
     if (current != prev_current) {
@@ -96,16 +96,16 @@ void update_energy_display(float current, float total_24h, float prev_current, f
         st7789_draw_string(70, 195, buffer, WHITE, BLACK);
     }
     
-    if (total_24h != prev_total) {
-        sprintf(buffer, "%.2fkWh  ", total_24h / 1000.0);
+    if (total != prev_total) {
+        sprintf(buffer, "%.2fkWh  ", total / 1000.0);
         st7789_fill_rect(50, 210, 120, 8, BLACK);
         st7789_draw_string(50, 210, buffer, YELLOW, BLACK);
     }
 }
 
 // Atualiza apenas o status com PWM
-void update_status_display(bool heater_on, bool fan_on, float pwm_percent, 
-                          bool prev_heater, bool prev_fan, float prev_pwm) {
+void update_status_display(bool heater_on, float pwm_percent, 
+                          bool prev_heater, float prev_pwm) {
     char buffer[32];
     
     // Status do heater
@@ -137,25 +137,28 @@ void update_status_display(bool heater_on, bool fan_on, float pwm_percent,
         
         st7789_draw_string(15, 265, buffer, pwm_color, BLACK);
     }
-    
-    // Status da ventoinha
-    if (fan_on != prev_fan) {
-        st7789_fill_rect(120, 250, 100, 8, BLACK);
-        if (fan_on) {
-            st7789_draw_string(120, 250, "VENTILANDO", CYAN, BLACK);
-        } else {
-            st7789_draw_string(120, 250, "PARADO    ", WHITE, BLACK);
-        }
-    }
 }
 
-// Atualiza apenas o uptime
+// Atualiza uptime com formato inteligente para longos períodos
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
     if (uptime != prev_uptime) {
         char buffer[32];
-        int hours = uptime / 3600;
-        int minutes = (uptime % 3600) / 60;
-        sprintf(buffer, "Uptime: %02d:%02d  ", hours, minutes);
+        
+        uint32_t days = uptime / (24 * 3600);
+        uint32_t hours = (uptime % (24 * 3600)) / 3600;
+        uint32_t minutes = (uptime % 3600) / 60;
+        
+        // Formato automático baseado no tempo decorrido
+        if (days > 0) {
+            // Mais de 1 dia: mostra dias e horas
+            sprintf(buffer, "%dd %02dh    ", days, hours);
+        } else if (hours > 0) {
+            // Mais de 1 hora: mostra horas e minutos  
+            sprintf(buffer, "%02d:%02d    ", hours, minutes);
+        } else {
+            // Menos de 1 hora: mostra apenas minutos
+            sprintf(buffer, "%02dm      ", minutes);
+        }
         
         st7789_fill_rect(10, 285, 150, 8, BLACK);
         st7789_draw_string(10, 285, buffer, WHITE, BLACK);
@@ -170,11 +173,11 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
     
     update_humidity_display(data->humidity, prev_data->humidity);
     
-    update_energy_display(data->energy_current, data->energy_24h,
-                         prev_data->energy_current, prev_data->energy_24h);
+    update_energy_display(data->energy_current, data->energy_total,
+                         prev_data->energy_current, prev_data->energy_total);
     
-    update_status_display(data->heater_on, data->fan_on, data->pwm_percent,
-                         prev_data->heater_on, prev_data->fan_on, prev_data->pwm_percent);
+    update_status_display(data->heater_on, data->pwm_percent,
+                         prev_data->heater_on, prev_data->pwm_percent);
     
     update_uptime_display(data->uptime, prev_data->uptime);
 }

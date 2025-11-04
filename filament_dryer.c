@@ -26,7 +26,6 @@
 // Configurações principais do sistema
 #define UPDATE_INTERVAL_MS 5000        // Atualiza a cada 5 segundos
 #define TEMP_TARGET_DEFAULT 45         // Temperatura alvo padrão (°C)
-#define ENERGY_RESET_HOURS 24          // Reset do consumo a cada 24h
 
 // Inicialização de todos os módulos do sistema
 void system_init(void) {
@@ -48,7 +47,7 @@ void system_init(void) {
 int main() {
     // Initialize standard I/O for debugging
     stdio_init_all();
-    sleep_ms(2000);  // Aguarda estabilizar USB
+    sleep_ms(1500);  // Aguarda estabilizar USB
     
     printf("\n=== ESTUFA DE FILAMENTOS v2.0 (Modular) ===\n");
     printf("Main: Iniciando sistema...\n");
@@ -67,10 +66,9 @@ int main() {
         .temperature = 25.0,
         .humidity = 50.0,
         .temp_target = TEMP_TARGET_DEFAULT,
-        .energy_24h = 0.0,
+        .energy_total = 0.0,
         .energy_current = 0.0,
         .heater_on = false,
-        .fan_on = false,
         .sensor_safe = true,  // Assume sensor OK no início
         .uptime = 0,
         .pwm_percent = 0.0
@@ -107,9 +105,8 @@ int main() {
     prev_data.temp_target = -999;  // Força atualização
     prev_data.humidity = -999;     // Força atualização
     prev_data.energy_current = -999; // Força atualização
-    prev_data.energy_24h = -999;   // Força atualização
+    prev_data.energy_total = -999;   // Força atualização
     prev_data.heater_on = !dryer_data.heater_on; // Força atualização
-    prev_data.fan_on = !dryer_data.fan_on;       // Força atualização
     prev_data.sensor_safe = !dryer_data.sensor_safe; // Força atualização
     prev_data.uptime = -1;         // Força atualização
     prev_data.pwm_percent = -1;    // Força atualização PWM
@@ -127,7 +124,6 @@ int main() {
         
         // Atualiza dados a cada UPDATE_INTERVAL_MS
         if (current_time - last_update >= UPDATE_INTERVAL_MS) {
-            printf("Main: Iniciando ciclo de atualização...\n");
             last_update = current_time;
             
             // Salvar valores anteriores
@@ -146,14 +142,8 @@ int main() {
             // Ler sensor de energia
             dryer_data.energy_current = sensor_manager_read_energy();
             
-            // Acumular energia (aproximação simples)
-            dryer_data.energy_24h += (dryer_data.energy_current * UPDATE_INTERVAL_MS) / 3600000.0; // Wh
-            
-            // Reset do consumo diário (simplificado - a cada 24h de uptime)
-            if (dryer_data.uptime > 0 && (dryer_data.uptime % (24 * 3600)) == 0) {
-                dryer_data.energy_24h = 0.0;
-                printf("Main: Reset do consumo diário\n");
-            }
+            // Acumular energia total (aproximação simples)
+            dryer_data.energy_total += (dryer_data.energy_current * UPDATE_INTERVAL_MS) / 3600000.0; // Wh
             
             // Controle automático de temperatura usando módulo temperature_control
             temperature_control_update(&dryer_data, sensor_manager_is_safe());
@@ -171,11 +161,10 @@ int main() {
             
             // Log no serial com status de segurança e PWM
             const char* safety_status = sensor_manager_is_safe() ? "SAFE" : "⚠️UNSAFE";
-            printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) Fan:%s [%s]\n",
+            printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]\n",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
                    dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,
-                   dryer_data.fan_on ? "ON" : "OFF",
                    safety_status);
         }
         

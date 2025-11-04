@@ -51,10 +51,8 @@ static void read_dht22_sensor(float *temperature, float *humidity) {
     if (current_time - last_dht22_read >= DHT22_READ_INTERVAL_MS) {
         last_dht22_read = current_time;
         
-        printf("Sensor Manager: Tentando ler DHT22...\n");
         float new_temp, new_hum;
         dht22_result_t result = dht22_read(&new_temp, &new_hum);
-        printf("Sensor Manager: Resultado DHT22: %d\n", result);
         
         if (result == DHT22_OK) {
             // ✅ SENSOR OK - Sistema pode operar normalmente
@@ -64,11 +62,6 @@ static void read_dht22_sensor(float *temperature, float *humidity) {
             dht22_error_count = 0; // Reset contador de erros
             dht22_sensor_ok = true;
             
-            // Log ocasional de sucesso
-            if (dht22_success_count % 20 == 1) {
-                printf("Sensor Manager: DHT22 ✅ OK: %.1f°C, %.1f%% (sucessos: %lu)\n", 
-                       new_temp, new_hum, dht22_success_count);
-            }
         } else {
             // ❌ ERRO CRÍTICO - Incrementar contador
             dht22_error_count++;

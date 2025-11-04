@@ -7,12 +7,10 @@
 
 // Pinos de controle de hardware
 #define HEATER_PIN 15           // GPIO para controle do hotend
-#define FAN_PIN 14              // GPIO para controle da ventoinha
 
 // Funções públicas do módulo
 void hardware_control_init(void);
 void hardware_control_heater(bool enable);
-void hardware_control_fan(bool enable);
 void hardware_control_update_pwm(dryer_data_t *data, bool sensor_safe);
 void hardware_control_led_status(bool sensor_safe, bool heater_on);
 

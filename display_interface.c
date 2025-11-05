@@ -186,8 +186,8 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
 void display_init_screen(void) {
     st7789_fill_color(BLACK);
     st7789_draw_string(30, 100, "ESTUFA FILAMENTOS", WHITE, BLACK);
-    st7789_draw_string(80, 120, "Iniciando...", GREEN, BLACK);
-    st7789_draw_string(40, 150, "Aquecendo sistema", YELLOW, BLACK);
+    st7789_draw_string(80, 120, "Iniciando...", WHITE, BLACK);
+    st7789_draw_string(40, 150, "Aquecendo sistema", WHITE, BLACK);
 }
 
 // Teste de caracteres
@@ -205,4 +205,10 @@ void display_test_characters(void) {
     st7789_draw_string(10, 100, "Colchetes: [BTN]", YELLOW, BLACK);
     st7789_draw_string(10, 115, "Parenteses: (BTN)", RED, BLACK);
     st7789_draw_string(10, 130, "Chars: []{}()<>", WHITE, BLACK);
+    
+    // Teste individual do caractere problemático
+    st7789_draw_string(10, 145, "ASCII 91: [", GREEN, BLACK);
+    st7789_draw_string(10, 160, "ASCII 93: ]", RED, BLACK);
+    st7789_draw_char(90, 160, ']', WHITE, BLACK);  // Teste direto do char
+    st7789_draw_char(100, 160, (char)93, CYAN, BLACK);  // Cast explícito
 }

@@ -33,7 +33,7 @@ void sensor_manager_init(void) {
            DHT22_PIN, ENERGY_SENSOR_PIN);
 }
 
-// Leitura CRÍTICA do DHT22 - SEM SIMULAÇÃO
+// Leitura do DHT22
 static void read_dht22_sensor(float *temperature, float *humidity) {
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     
@@ -41,7 +41,7 @@ static void read_dht22_sensor(float *temperature, float *humidity) {
     if (!dht22_initialized) {
         dht22_init(DHT22_PIN);
         dht22_initialized = true;
-        printf("*** Sensor Manager: DHT22 CRÍTICO inicializado no GPIO %d ***\n", DHT22_PIN);
+        printf("*** Sensor Manager: DHT22 inicializado no GPIO %d ***\n", DHT22_PIN);
         last_dht22_read = current_time;
         dht22_sensor_ok = true;
         printf("Sensor Manager: DHT22 pronto para leituras!\n");
@@ -71,10 +71,10 @@ static void read_dht22_sensor(float *temperature, float *humidity) {
             // PARADA DE SEGURANÇA se muitos erros consecutivos
             if (dht22_error_count >= DHT22_MAX_CONSECUTIVE_ERRORS) {
                 dht22_sensor_ok = false;
-                printf("\nSensor Manager: 🚨 ALERTA DE SEGURANÇA: DHT22 FALHOU! 🚨\n");
+                printf("Sensor Manager: 🚨 ALERTA DE SEGURANÇA: DHT22 FALHOU! 🚨\n");
                 printf("Sensor Manager: 🔥 AQUECEDOR DESABILITADO POR SEGURANÇA\n");
                 printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES DO SENSOR\n");
-                printf("Sensor Manager: 📊 Erros consecutivos: %lu\n\n", dht22_error_count);
+                printf("Sensor Manager: 📊 Erros consecutivos: %lu\n", dht22_error_count);
             }
         }
     }
@@ -95,15 +95,6 @@ void sensor_manager_update(sensor_data_t *sensor_data) {
 // Verificar status de segurança do sensor
 bool sensor_manager_is_safe(void) {
     return dht22_sensor_ok;
-}
-
-// Tentar recuperar sensor após erro
-void sensor_manager_recovery_attempt(void) {
-    if (!dht22_sensor_ok && dht22_error_count >= DHT22_MAX_CONSECUTIVE_ERRORS) {
-        printf("Sensor Manager: 🔄 Tentativa de recuperação do DHT22...\n");
-        dht22_error_count = 0; // Reset para dar nova chance
-        dht22_sensor_ok = true; // Permitir nova tentativa
-    }
 }
 
 // Simulação do sensor de energia (substitua pela implementação real)

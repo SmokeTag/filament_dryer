@@ -63,7 +63,7 @@ int main() {
     
     // Inicializar dados da estufa
     dryer_data_t dryer_data = {
-        .temperature = 25.0,
+        .temperature = 10.0,
         .humidity = 50.0,
         .temp_target = TEMP_TARGET_DEFAULT,
         .energy_total = 0.0,
@@ -147,14 +147,6 @@ int main() {
             
             // Controle automático de temperatura usando módulo temperature_control
             temperature_control_update(&dryer_data, sensor_manager_is_safe());
-            
-            // Tentativa de recuperação do DHT22 a cada 30 segundos se falhou
-            static uint32_t last_recovery_attempt = 0;
-            if (!sensor_manager_is_safe() && 
-                (current_time - last_recovery_attempt >= 30000)) {
-                last_recovery_attempt = current_time;
-                sensor_manager_recovery_attempt();
-            }
             
             // Atualizar display de forma inteligente (apenas o que mudou)
             update_interface_smart(&dryer_data, &prev_data);

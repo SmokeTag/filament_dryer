@@ -1,3 +1,5 @@
+// TODO: Think about adding a LED indicator
+
 /**
  * Filament Dryer Controller - Main Module
  * Sistema de estufa para secar filamentos de impressão 3D
@@ -99,17 +101,7 @@ int main() {
     
     // Estrutura para guardar valores anteriores
     dryer_data_t prev_data = dryer_data;
-    
-    // Primeira atualização completa (forçar diferenças para desenhar tudo)
-    prev_data.temperature = -999;  // Força atualização
-    prev_data.temp_target = -999;  // Força atualização
-    prev_data.humidity = -999;     // Força atualização
-    prev_data.energy_current = -999; // Força atualização
-    prev_data.energy_total = -999;   // Força atualização
-    prev_data.heater_on = !dryer_data.heater_on; // Força atualização
-    prev_data.sensor_safe = !dryer_data.sensor_safe; // Força atualização
-    prev_data.uptime = -1;         // Força atualização
-    prev_data.pwm_percent = -1;    // Força atualização PWM
+    prev_data.temp_target = dryer_data.temp_target - 1.0; // Forçar atualização inicial
     
     printf("Main: 🎯 Temperatura alvo inicial: %.0f°C\n", dryer_data.temp_target);
     

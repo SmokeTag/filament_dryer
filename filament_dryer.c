@@ -1,4 +1,5 @@
 // TODO: Think about adding a LED indicator
+// TODO: Implementar aviso de falha do sensor no display
 
 /**
  * Filament Dryer Controller - Main Module

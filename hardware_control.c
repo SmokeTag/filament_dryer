@@ -27,7 +27,7 @@ void hardware_control_init(void) {
     last_led_update = 0;
     led_state = false;
     
-    printf("Hardware Control: Inicializado (Heater: GPIO%d)\n", HEATER_PIN);
+    printf("Hardware Control: Inicializado (Heater: GPIO %d)\n", HEATER_PIN);
 }
 
 // Controle do aquecedor

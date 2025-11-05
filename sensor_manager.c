@@ -29,7 +29,7 @@ void sensor_manager_init(void) {
     dht22_success_count = 0;
     dht22_sensor_ok = false;
     
-    printf("Sensor Manager: Inicializado (DHT22: GPIO%d, Energy: GPIO%d)\n", 
+    printf("Sensor Manager: Inicializado (DHT22: GPIO %d, Energy: GPIO %d)\n", 
            DHT22_PIN, ENERGY_SENSOR_PIN);
 }
 
@@ -72,9 +72,12 @@ static void read_dht22_sensor(float *temperature, float *humidity) {
             if (dht22_error_count >= DHT22_MAX_CONSECUTIVE_ERRORS) {
                 dht22_sensor_ok = false;
                 printf("Sensor Manager: 🚨 ALERTA DE SEGURANÇA: DHT22 FALHOU! 🚨\n");
-                printf("Sensor Manager: 🔥 AQUECEDOR DESABILITADO POR SEGURANÇA\n");
-                printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES DO SENSOR\n");
-                printf("Sensor Manager: 📊 Erros consecutivos: %lu\n", dht22_error_count);
+                if (dht22_error_count == DHT22_MAX_CONSECUTIVE_ERRORS) {
+                    // Apenas logar na primeira vez que atingir o limite
+                    printf("Sensor Manager: 🔥 AQUECEDOR DESABILITADO POR SEGURANÇA\n");
+                    printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES DO SENSOR\n");
+                    printf("Sensor Manager: 📊 Erros consecutivos: %lu\n", dht22_error_count);
+                }
             }
         }
     }

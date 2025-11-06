@@ -1,8 +1,6 @@
 // TODO: Think about adding a LED indicator
-// TODO: Implementar aviso de falha do sensor no display
 // TODO: Implementar controle de temperatura baseado em PID
 // TODO: considerar usar interrupções para o botão em vez de polling
-// TODO: adicionar moldura ao redor das barras de status no display
 
 /**
  * Filament Dryer Controller - Main Module
@@ -107,6 +105,9 @@ int main() {
     dryer_data_t prev_data = dryer_data;
     prev_data.temp_target = dryer_data.temp_target - 1.0; // Forçar atualização inicial
     
+    // Controle de tela de erro
+    static bool error_screen_displayed = false;
+    
     printf("Main: 🎯 Temperatura alvo inicial: %.0f°C\n", dryer_data.temp_target);
     
     printf("Main: Atualizando interface inicial...\n");
@@ -144,8 +145,31 @@ int main() {
             // Controle automático de temperatura usando módulo temperature_control
             temperature_control_update(&dryer_data, dryer_data.sensor_safe);
             
-            // Atualizar display de forma inteligente (apenas o que mudou)
-            update_interface_smart(&dryer_data, &prev_data);
+            // Gerenciamento de tela baseado no status do sensor
+            if (!dryer_data.sensor_safe && !error_screen_displayed) {
+                // Sensor falhou - mostrar tela de erro crítica
+                display_critical_error_screen();
+                error_screen_displayed = true;
+                printf("Main: 🚨 Tela de erro exibida - sensor DHT22 falhou!\n");
+            } else if (dryer_data.sensor_safe && error_screen_displayed) {
+                // Sensor recuperou - voltar à interface normal
+                draw_static_interface();
+                error_screen_displayed = false;
+                // Forçar atualização completa na próxima iteração
+                prev_data.temperature = -999;
+                prev_data.temp_target = 39;
+                prev_data.humidity = -999;
+                prev_data.energy_current = -999;
+                prev_data.energy_total = -999;
+                prev_data.heater_on = dryer_data.heater_on;
+                prev_data.uptime = -1;
+                prev_data.pwm_percent = -1;
+                printf("Main: ✅ Interface principal restaurada - sensor DHT22 recuperado!\n");
+            } else if (dryer_data.sensor_safe && !error_screen_displayed) {
+                // Operação normal - atualizar interface normalmente
+                update_interface_smart(&dryer_data, &prev_data);
+            }
+            // Se sensor falhou E tela já está exibida, não fazer nada (manter tela de erro)
             
             // Log no serial com status de segurança e PWM
             const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "⚠️UNSAFE";

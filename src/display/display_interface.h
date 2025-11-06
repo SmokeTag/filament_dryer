@@ -31,5 +31,6 @@ void update_energy_display(float current, float total, float prev_current, float
 void update_status_display(bool heater_on, float pwm_percent, 
                           bool prev_heater, float prev_pwm);
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime);
+void display_critical_error_screen(void);
 
 #endif // DISPLAY_INTERFACE_H

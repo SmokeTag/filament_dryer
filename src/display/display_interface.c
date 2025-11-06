@@ -186,6 +186,43 @@ void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
     }
 }
 
+// Tela completa de erro crítico
+void display_critical_error_screen(void) {
+    // Tela vermelha de emergência
+    st7789_fill_color(RED);
+    
+    // Título de erro em branco
+    st7789_draw_string(60, 30, "ERRO CRITICO!", WHITE, RED);
+    
+    // Linha separadora
+    st7789_fill_rect(20, 50, 200, 3, WHITE);
+    
+    // Mensagem principal
+    st7789_draw_string(30, 80, "SENSOR DHT22 FALHOU", WHITE, RED);
+    st7789_draw_string(50, 100, "SISTEMA UNSAFE", WHITE, RED);
+    
+    // Ações tomadas
+    st7789_draw_string(20, 130, "AQUECEDOR DESLIGADO", YELLOW, RED);
+    st7789_draw_string(20, 150, "MODO SEGURANCA ATIVO", YELLOW, RED);
+    
+    // Linha separadora
+    st7789_fill_rect(20, 170, 200, 2, WHITE);
+    
+    // Instruções
+    st7789_draw_string(30, 190, "VERIFIQUE CONEXOES", WHITE, RED);
+    st7789_draw_string(40, 210, "SENSOR DHT22", WHITE, RED);
+    
+    // Status de recuperação
+    st7789_draw_string(20, 240, "TENTANDO RECONECTAR...", CYAN, RED);
+    
+    // Linha inferior
+    st7789_fill_rect(20, 270, 200, 2, WHITE);
+    st7789_draw_string(40, 285, "SISTEMA REINICIARA", WHITE, RED);
+    st7789_draw_string(30, 300, "QUANDO SENSOR VOLTAR", WHITE, RED);
+}
+
+
+
 // Função principal de atualização inteligente
 void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
     // Atualizar apenas se houve mudanças

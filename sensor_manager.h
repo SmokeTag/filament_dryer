@@ -22,7 +22,6 @@ typedef struct {
 // Funções públicas do módulo
 void sensor_manager_init(void);
 void sensor_manager_update(sensor_data_t *sensor_data);
-bool sensor_manager_is_safe(void);
 float sensor_manager_read_energy(void);
 
 #endif // SENSOR_MANAGER_H

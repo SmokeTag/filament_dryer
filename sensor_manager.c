@@ -95,11 +95,6 @@ void sensor_manager_update(sensor_data_t *sensor_data) {
     sensor_data->success_count = dht22_success_count;
 }
 
-// Verificar status de segurança do sensor
-bool sensor_manager_is_safe(void) {
-    return dht22_sensor_ok;
-}
-
 // Simulação do sensor de energia (substitua pela implementação real)
 float sensor_manager_read_energy(void) {
     // TODO: Implementar leitura real do sensor de energia

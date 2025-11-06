@@ -13,9 +13,7 @@ void draw_static_interface(void) {
     st7789_draw_string(80, 25, "v1.0", CYAN, BLACK);
     
     // Linha separadora
-    for (int x = 10; x < 230; x += 8) {
-        st7789_draw_string(x, 40, "-", BLUE, BLACK);
-    }
+    st7789_fill_rect(0, 40, DISPLAY_WIDTH, 2, BLUE);
     
     // === LABELS FIXOS ===
     st7789_draw_string(10, 55, "TEMPERATURA", YELLOW, BLACK);
@@ -23,18 +21,26 @@ void draw_static_interface(void) {
     st7789_draw_string(15, 85, "Alvo:", WHITE, BLACK);
     st7789_draw_string(160, 85, "(BTN)", GREEN, BLACK);
     
+    // Moldura da barra de temperatura
+    st7789_fill_rect(14, 99, 202, 10, WHITE);  // Moldura externa
+    st7789_fill_rect(15, 100, 200, 8, BLACK);   // Interior preto
+    
     st7789_draw_string(10, 125, "UMIDADE", CYAN, BLACK);
+    
+    // Moldura da barra de umidade
+    st7789_fill_rect(14, 154, 202, 10, WHITE);  // Moldura externa
+    st7789_fill_rect(15, 155, 200, 8, BLACK);   // Interior preto
     
     st7789_draw_string(10, 180, "CONSUMO", MAGENTA, BLACK);
     st7789_draw_string(15, 195, "Atual:", WHITE, BLACK);
     st7789_draw_string(15, 210, "Total:", WHITE, BLACK);
     
     st7789_draw_string(10, 235, "STATUS", WHITE, BLACK);
+
+    st7789_draw_string(10, 285, "UPTIME:", WHITE, BLACK);
     
     // Linha separadora inferior
-    for (int x = 10; x < 230; x += 8) {
-        st7789_draw_string(x, 300, "-", BLUE, BLACK);
-    }
+    st7789_fill_rect(0, 300, DISPLAY_WIDTH, 2, BLUE);
 }
 
 // Atualiza apenas os valores de temperatura
@@ -49,13 +55,24 @@ void update_temperature_display(float temperature, float target, float prev_temp
         st7789_fill_rect(70, 70, 80, 8, BLACK);
         st7789_draw_string(70, 70, buffer, WHITE, BLACK);
         
-        // Atualizar barra de temperatura
-        st7789_fill_rect(15, 100, 200, 8, BLACK); // Limpar barra anterior
-        int temp_bar_width = (int)((temperature / 80.0) * 200);
-        if (temp_bar_width > 200) temp_bar_width = 200;
+        // Atualizar barra de temperatura (preservar moldura)
+        // Limpar apenas o interior da moldura primeiro
+        st7789_fill_rect(15, 100, 200, 8, BLACK);
+        
+        // Calcular largura da barra baseada no target (200px = target)
+        int temp_bar_width = (int)((temperature / target) * 200);
+        
         if (temp_bar_width > 0) {
-            uint16_t color = (temperature < target) ? BLUE : RED;
-            st7789_fill_rect(15, 100, temp_bar_width, 8, color);
+            uint16_t color = (temperature <= target) ? BLUE : RED;
+            
+            // Se não excede o target, desenhar só dentro da moldura
+            if (temp_bar_width <= 200) {
+                st7789_fill_rect(15, 100, temp_bar_width, 8, color);
+            } else {
+                // Excede target: preencher moldura + overflow
+                st7789_fill_rect(15, 100, 200, 8, BLUE);  // Parte normal
+                st7789_fill_rect(216, 100, temp_bar_width - 201, 8, RED); // Overflow
+            }
         }
     }
     
@@ -77,9 +94,13 @@ void update_humidity_display(float humidity, float prev_humidity) {
         st7789_fill_rect(15, 140, 100, 8, BLACK);
         st7789_draw_string(15, 140, buffer, WHITE, BLACK);
         
-        // Atualizar barra de umidade
+        // Atualizar barra de umidade (preservar moldura)
+        // Limpar apenas o interior da moldura
         st7789_fill_rect(15, 155, 200, 8, BLACK);
+        
         int hum_bar_width = (int)((humidity / 100.0) * 200);
+        if (hum_bar_width > 200) hum_bar_width = 200; // Limitar a 100%
+        
         if (hum_bar_width > 0) {
             st7789_fill_rect(15, 155, hum_bar_width, 8, CYAN);
         }
@@ -160,8 +181,8 @@ void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
             sprintf(buffer, "%02dm      ", minutes);
         }
         
-        st7789_fill_rect(10, 285, 150, 8, BLACK);
-        st7789_draw_string(10, 285, buffer, WHITE, BLACK);
+        st7789_fill_rect(74, 285, 150, 8, BLACK);
+        st7789_draw_string(74, 285, buffer, WHITE, BLACK);
     }
 }
 

@@ -1,5 +1,9 @@
+// TODO: Criar pasta SRC para organizar arquivos fonte
 // TODO: Think about adding a LED indicator
 // TODO: Implementar aviso de falha do sensor no display
+// TODO: Implementar controle de temperatura baseado em PID
+// TODO: considerar usar interrupções para o botão em vez de polling
+// TODO: adicionar moldura ao redor das barras de status no display
 
 /**
  * Filament Dryer Controller - Main Module
@@ -139,13 +143,13 @@ int main() {
             dryer_data.energy_total += (dryer_data.energy_current * UPDATE_INTERVAL_MS) / 3600000.0; // Wh
             
             // Controle automático de temperatura usando módulo temperature_control
-            temperature_control_update(&dryer_data, sensor_manager_is_safe());
+            temperature_control_update(&dryer_data, dryer_data.sensor_safe);
             
             // Atualizar display de forma inteligente (apenas o que mudou)
             update_interface_smart(&dryer_data, &prev_data);
             
             // Log no serial com status de segurança e PWM
-            const char* safety_status = sensor_manager_is_safe() ? "SAFE" : "⚠️UNSAFE";
+            const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "⚠️UNSAFE";
             printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]\n",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
@@ -154,7 +158,6 @@ int main() {
         }
         
         // Verificar botão de ajuste de temperatura usando módulo button_controller
-        float old_target = dryer_data.temp_target;
         bool temp_changed = button_controller_update(&dryer_data);
         
         // Se temperatura alvo mudou, atualizar display imediatamente
@@ -162,14 +165,12 @@ int main() {
             printf("Main: 🎮 Temperatura alvo mudou para %.0f°C\n", dryer_data.temp_target);
             
             // Atualizar display imediatamente (sem esperar os 5s)
-            dryer_data_t temp_prev_data = prev_data;
-            temp_prev_data.temp_target = old_target;
-            update_temperature_display(dryer_data.temperature, dryer_data.temp_target, 
-                                     temp_prev_data.temperature, temp_prev_data.temp_target);
+            update_temperature_display(dryer_data.temperature, dryer_data.temp_target,
+                                        prev_data.temperature, prev_data.temp_target);
         }
         
         // LED de status usando módulo hardware_control
-        hardware_control_led_status(sensor_manager_is_safe(), dryer_data.heater_on);
+        hardware_control_led_status(dryer_data.sensor_safe, dryer_data.heater_on);
         
         sleep_ms(100);  // Loop principal a cada 100ms
     }

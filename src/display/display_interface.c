@@ -55,9 +55,9 @@ void update_temperature_display(float temperature, float target, float prev_temp
         st7789_fill_rect(70, 70, 80, 8, BLACK);
         st7789_draw_string(70, 70, buffer, WHITE, BLACK);
         
-        // Atualizar barra de temperatura (preservar moldura)
-        // Limpar apenas o interior da moldura primeiro
-        st7789_fill_rect(15, 100, 200, 8, BLACK);
+        // Atualizar barra de temperatura
+        st7789_fill_rect(15, 100, 200, 8, BLACK); // Limpar interior
+        st7789_fill_rect(216, 100, 200, 8, BLACK); // Limpar overflow
         
         // Calcular largura da barra baseada no target (200px = target)
         int temp_bar_width = (int)((temperature / target) * 200);
@@ -70,8 +70,8 @@ void update_temperature_display(float temperature, float target, float prev_temp
                 st7789_fill_rect(15, 100, temp_bar_width, 8, color);
             } else {
                 // Excede target: preencher moldura + overflow
-                st7789_fill_rect(15, 100, 200, 8, BLUE);  // Parte normal
-                st7789_fill_rect(216, 100, temp_bar_width - 201, 8, RED); // Overflow
+                st7789_fill_rect(15, 100, 200, 8, color);  // Parte normal
+                st7789_fill_rect(216, 100, temp_bar_width - 201, 8, color); // Overflow
             }
         }
     }

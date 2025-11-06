@@ -1,6 +1,5 @@
 // TODO: Think about adding a LED indicator
 // TODO: Implementar controle de temperatura baseado em PID
-// TODO: considerar usar interrupções para o botão em vez de polling
 
 /**
  * Filament Dryer Controller - Main Module
@@ -156,14 +155,10 @@ int main() {
                 draw_static_interface();
                 error_screen_displayed = false;
                 // Forçar atualização completa na próxima iteração
-                prev_data.temperature = -999;
                 prev_data.temp_target = 39;
-                prev_data.humidity = -999;
-                prev_data.energy_current = -999;
-                prev_data.energy_total = -999;
-                prev_data.heater_on = dryer_data.heater_on;
-                prev_data.uptime = -1;
+                prev_data.heater_on = !dryer_data.heater_on;
                 prev_data.pwm_percent = -1;
+                update_interface_smart(&dryer_data, &prev_data);
                 printf("Main: ✅ Interface principal restaurada - sensor DHT22 recuperado!\n");
             } else if (dryer_data.sensor_safe && !error_screen_displayed) {
                 // Operação normal - atualizar interface normalmente

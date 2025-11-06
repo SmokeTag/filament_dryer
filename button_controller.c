@@ -69,7 +69,7 @@ bool button_controller_update(dryer_data_t *data) {
     
     // Detectar início do pressionamento
     if (state_changed && button_state) {
-        // Botão foi pressionado - apenas marcar início (sem incrementar ainda)
+        // Botão foi pressionado
         button_was_pressed = true;
         button_in_fast_mode = false;
         button_press_start = current_time;
@@ -78,7 +78,7 @@ bool button_controller_update(dryer_data_t *data) {
         return false;  // Sem mudança de temperatura ainda
     }
     
-    // Detectar fim do pressionamento (AQUI QUE INCREMENTA)
+    // Detectar fim do pressionamento
     if (state_changed && !button_state) {
         // Botão foi solto - calcular ação baseada no tempo
         uint32_t press_duration = current_time - button_press_start;
@@ -97,7 +97,7 @@ bool button_controller_update(dryer_data_t *data) {
         } else {
             // Pressão longa: SEM incremento adicional se já estava no modo rápido
             if (was_in_fast_mode) {
-                printf("🌡️ Button: Modo rápido finalizado - SEM incremento extra → %.0f°C\n", data->temp_target);
+                printf("🌡️ Button: Modo rápido finalizado - %.0f°C\n", data->temp_target);
                 // temp_changed fica false - não houve mudança ao soltar
             } else {
                 // Pressão longa mas não chegou a ativar modo rápido - dar +5°C
@@ -105,7 +105,7 @@ bool button_controller_update(dryer_data_t *data) {
                 if (data->temp_target > TEMP_MAX) {
                     data->temp_target = TEMP_MIN;
                 }
-                printf("🌡️ Button: Pressão longa (sem modo rápido) +5°C → %.0f°C\n", data->temp_target);
+                printf("🌡️ Button: Pressão longa +5°C → %.0f°C\n", data->temp_target);
                 temp_changed = true;
             }
         }

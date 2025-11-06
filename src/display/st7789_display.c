@@ -161,6 +161,8 @@ void st7789_init(void) {
     st7789_write_cmd(ST7789_MADCTL);   // Memory access control
     st7789_write_data(0x00);           // Default orientation
     
+    st7789_write_cmd(ST7789_INVON);    // Display inversion on (fixes color inversion)
+    
     st7789_write_cmd(ST7789_CASET);    // Column address set
     st7789_write_data(0x00);
     st7789_write_data(0x00);

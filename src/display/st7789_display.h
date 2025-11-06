@@ -38,6 +38,8 @@
 #define ST7789_CASET   0x2A
 #define ST7789_RASET   0x2B
 #define ST7789_RAMWR   0x2C
+#define ST7789_INVON   0x21
+#define ST7789_INVOFF  0x20
 #define ST7789_DISPON  0x29
 
 // Function prototypes

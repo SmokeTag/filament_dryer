@@ -119,8 +119,8 @@ void update_energy_display(float current, float total, float prev_current, float
     
     if (total != prev_total) {
         sprintf(buffer, "%.2fkWh  ", total / 1000.0);
-        st7789_fill_rect(50, 210, 120, 8, BLACK);
-        st7789_draw_string(50, 210, buffer, YELLOW, BLACK);
+        st7789_fill_rect(70, 210, 120, 8, BLACK);
+        st7789_draw_string(70, 210, buffer, YELLOW, BLACK);
     }
 }
 

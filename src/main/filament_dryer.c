@@ -1,4 +1,3 @@
-// TODO: Criar pasta SRC para organizar arquivos fonte
 // TODO: Think about adding a LED indicator
 // TODO: Implementar aviso de falha do sensor no display
 // TODO: Implementar controle de temperatura baseado em PID

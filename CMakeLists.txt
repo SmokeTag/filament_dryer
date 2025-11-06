@@ -36,14 +36,21 @@ pico_sdk_init()
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(filament_dryer
-    filament_dryer.c
-    st7789_display.c
-    display_interface.c
-    dht22.c
-    button_controller.c
-    sensor_manager.c
-    hardware_control.c
-    temperature_control.c
+    src/main/filament_dryer.c
+    src/display/st7789_display.c
+    src/display/display_interface.c
+    src/sensors/dht22.c
+    src/controls/button_controller.c
+    src/sensors/sensor_manager.c
+    src/controls/hardware_control.c
+    src/controls/temperature_control.c
+    )
+
+# Add include directories for headers
+target_include_directories(filament_dryer PRIVATE 
+    src/display
+    src/sensors  
+    src/controls
     )
 
 # pull in common dependencies

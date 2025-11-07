@@ -16,12 +16,13 @@ typedef struct {
     float humidity;
     bool sensor_safe;
     uint32_t error_count;
-    uint32_t success_count;
+    bool sensor_failure_event;  // TRUE se houve uma falha de leitura neste ciclo
+    bool unsafe_event;          // TRUE se o sistema entrou em modo unsafe neste ciclo
+    float energy_current;       // Consumo de energia atual (W)
 } sensor_data_t;
 
 // Funções públicas do módulo
 void sensor_manager_init(void);
 void sensor_manager_update(sensor_data_t *sensor_data);
-float sensor_manager_read_energy(void);
 
 #endif // SENSOR_MANAGER_H

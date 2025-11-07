@@ -38,6 +38,9 @@ void draw_static_interface(void) {
     st7789_draw_string(10, 235, "STATUS", WHITE, BLACK);
 
     st7789_draw_string(10, 285, "UPTIME:", WHITE, BLACK);
+    st7789_draw_string(120, 235, "ERROS", WHITE, BLACK);
+    st7789_draw_string(125, 250, "FALHAS:", WHITE, BLACK);
+    st7789_draw_string(125, 265, "UNSAFE:", WHITE, BLACK);
     
     // Linha separadora inferior
     st7789_fill_rect(0, 300, DISPLAY_WIDTH, 2, BLUE);
@@ -160,6 +163,26 @@ void update_status_display(bool heater_on, float pwm_percent,
     }
 }
 
+// Atualiza estatísticas do sistema (falhas do sensor e eventos unsafe)
+void update_statistics_display(uint32_t sensor_failures, uint32_t unsafe_events,
+                              uint32_t prev_failures, uint32_t prev_unsafe) {
+    char buffer[16];
+    
+    // Atualizar contador de falhas do sensor
+    if (sensor_failures != prev_failures) {
+        sprintf(buffer, "%lu   ", sensor_failures);
+        st7789_fill_rect(190, 250, 50, 8, BLACK);
+        st7789_draw_string(190, 250, buffer, WHITE, BLACK);
+    }
+    
+    // Atualizar contador de eventos unsafe
+    if (unsafe_events != prev_unsafe) {
+        sprintf(buffer, "%lu   ", unsafe_events);
+        st7789_fill_rect(190, 265, 50, 8, BLACK);
+        st7789_draw_string(190, 265, buffer, (unsafe_events > 0) ? RED : WHITE, BLACK);
+    }
+}
+
 // Atualiza uptime com formato inteligente para longos períodos
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
     if (uptime != prev_uptime) {
@@ -238,6 +261,9 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
                          prev_data->heater_on, prev_data->pwm_percent);
     
     update_uptime_display(data->uptime, prev_data->uptime);
+    
+    update_statistics_display(data->total_sensor_failures, data->total_unsafe_events,
+                             prev_data->total_sensor_failures, prev_data->total_unsafe_events);
 }
 
 // Tela de inicialização

@@ -47,6 +47,17 @@ void system_init(void) {
     printf("Main: Sistema da estufa completamente inicializado!\n");
 }
 
+// Função para processar dados dos sensores e atualizar dryer_data
+static void process_sensor_data(sensor_data_t *sensor_data, dryer_data_t *dryer_data) {
+    // Transferir dados básicos dos sensores
+    dryer_data->temperature = sensor_data->temperature;
+    dryer_data->humidity = sensor_data->humidity;
+    dryer_data->sensor_safe = sensor_data->sensor_safe;
+    dryer_data->energy_current = sensor_data->energy_current;
+    dryer_data->total_sensor_failures += sensor_data->sensor_failure_event ? 1 : 0;
+    dryer_data->total_unsafe_events += sensor_data->unsafe_event ? 1 : 0;
+}
+
 int main() {
     // Initialize standard I/O for debugging
     stdio_init_all();
@@ -74,7 +85,9 @@ int main() {
         .heater_on = false,
         .sensor_safe = true,  // Assume sensor OK no início
         .uptime = 0,
-        .pwm_percent = 0.0
+        .pwm_percent = 0.0,
+        .total_sensor_failures = 0,
+        .total_unsafe_events = 0
     };
     
     printf("Main: Sistema iniciado! Temperatura alvo: %.0f°C\n", dryer_data.temp_target);
@@ -103,6 +116,8 @@ int main() {
     // Estrutura para guardar valores anteriores
     dryer_data_t prev_data = dryer_data;
     prev_data.temp_target = dryer_data.temp_target - 1.0; // Forçar atualização inicial
+    prev_data.total_sensor_failures = -1; // Forçar atualização inicial
+    prev_data.total_unsafe_events = -1; // Forçar atualização inicial
     
     // Controle de tela de erro
     static bool error_screen_displayed = false;
@@ -128,15 +143,12 @@ int main() {
             // Atualizar tempo de funcionamento
             dryer_data.uptime = (current_time - start_time) / 1000;
             
-            // Ler sensores usando o módulo sensor_manager
+            // Ler todos os sensores de uma vez usando o módulo sensor_manager
             sensor_data_t sensor_data;
             sensor_manager_update(&sensor_data);
-            dryer_data.temperature = sensor_data.temperature;
-            dryer_data.humidity = sensor_data.humidity;
-            dryer_data.sensor_safe = sensor_data.sensor_safe;
             
-            // Ler sensor de energia
-            dryer_data.energy_current = sensor_manager_read_energy();
+            // Processar dados dos sensores e atualizar dryer_data
+            process_sensor_data(&sensor_data, &dryer_data);
             
             // Acumular energia total (aproximação simples)
             dryer_data.energy_total += (dryer_data.energy_current * UPDATE_INTERVAL_MS) / 3600000.0; // Wh
@@ -158,6 +170,8 @@ int main() {
                 prev_data.temp_target = 39;
                 prev_data.heater_on = !dryer_data.heater_on;
                 prev_data.pwm_percent = -1;
+                prev_data.total_sensor_failures = -1;
+                prev_data.total_unsafe_events = -1;
                 update_interface_smart(&dryer_data, &prev_data);
                 printf("Main: ✅ Interface principal restaurada - sensor DHT22 recuperado!\n");
             } else if (dryer_data.sensor_safe && !error_screen_displayed) {

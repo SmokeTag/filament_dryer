@@ -56,6 +56,7 @@ static void process_sensor_data(sensor_data_t *sensor_data, dryer_data_t *dryer_
     dryer_data->energy_current = sensor_data->energy_current;
     dryer_data->total_sensor_failures += sensor_data->sensor_failure_event ? 1 : 0;
     dryer_data->total_unsafe_events += sensor_data->unsafe_event ? 1 : 0;
+    strcpy(dryer_data->dht_status, sensor_data->dht_status);
 }
 
 int main() {
@@ -87,7 +88,8 @@ int main() {
         .uptime = 0,
         .pwm_percent = 0.0,
         .total_sensor_failures = 0,
-        .total_unsafe_events = 0
+        .total_unsafe_events = 0,
+        .dht_status = "Nenhum erro"
     };
     
     printf("Main: Sistema iniciado! Temperatura alvo: %.0f°C\n", dryer_data.temp_target);

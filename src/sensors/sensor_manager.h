@@ -19,6 +19,7 @@ typedef struct {
     bool sensor_failure_event;  // TRUE se houve uma falha de leitura neste ciclo
     bool unsafe_event;          // TRUE se o sistema entrou em modo unsafe neste ciclo
     float energy_current;       // Consumo de energia atual (W)
+    char dht_status[64]; // Descrição da última falha do sensor
 } sensor_data_t;
 
 // Funções públicas do módulo

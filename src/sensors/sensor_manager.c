@@ -4,6 +4,7 @@
 #include "pico/time.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // Variáveis privadas do módulo DHT22
 static uint32_t last_dht22_read = 0;
@@ -36,6 +37,7 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
     // Inicializar eventos como false por padrão
     sensor_data->sensor_failure_event = false;
     sensor_data->unsafe_event = false;
+    strcpy(sensor_data->dht_status, "Nenhum erro");
     
     // Inicializar DHT22 na primeira chamada
     if (!dht22_initialized) {
@@ -65,6 +67,11 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
             // ❌ ERRO CRÍTICO - Reportar evento de falha
             dht22_error_count++;
             sensor_data->sensor_failure_event = true;  // Reportar evento de falha
+            
+            // Armazenar mensagem da última falha
+            snprintf(sensor_data->dht_status, sizeof(sensor_data->dht_status), 
+                    "%s", dht22_error_string(result));
+            
             printf("Sensor Manager: ❌ DHT22 ERRO CRÍTICO #%lu: %s\n", 
                    dht22_error_count, dht22_error_string(result));
             

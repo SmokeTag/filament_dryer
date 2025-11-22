@@ -40,6 +40,7 @@ add_executable(filament_dryer
     src/display/st7789_display.c
     src/display/display_interface.c
     src/sensors/dht22.c
+    src/sensors/acs712.c
     src/controls/button_controller.c
     src/sensors/sensor_manager.c
     src/controls/hardware_control.c

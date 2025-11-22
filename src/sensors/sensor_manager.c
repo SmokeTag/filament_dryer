@@ -1,5 +1,6 @@
 #include "sensor_manager.h"
 #include "dht22.h"
+#include "acs712.h"
 #include "hardware/adc.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -17,7 +18,7 @@ static uint32_t dht22_error_count = 0;
 void sensor_manager_init(void) {
     // Inicializar ADC para sensor de energia
     adc_init();
-    adc_gpio_init(ENERGY_SENSOR_PIN);
+    acs712_init(ENERGY_SENSOR_PIN);
     
     // Reset das variáveis DHT22
     last_dht22_read = 0;
@@ -96,11 +97,12 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
     sensor_data->error_count = dht22_error_count;
 }
 
-// Simulação do sensor de energia (substitua pela implementação real)
+// Leitura do sensor de energia (ACS712)
 static float sensor_manager_read_energy(void) {
-    // TODO: Implementar leitura real do sensor de energia
-    // Por enquanto, simula consumo de 0 a 100W
-    return ((float)(rand() % 1000)) / 10.0; // 0-100W
+    // Retorna potência em Watts (P = V * I)
+    // Hotend é 12V
+    float current = acs712_read_current();
+    return current * 12.0f;
 }
 
 // Atualizar todos os sensores

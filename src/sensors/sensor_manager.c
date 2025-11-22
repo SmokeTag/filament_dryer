@@ -100,8 +100,19 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
 // Leitura do sensor de energia (ACS712)
 static float sensor_manager_read_energy(void) {
     // Retorna potência em Watts (P = V * I)
-    // Hotend é 12V
-    float current = acs712_read_current();
+    // Hotend em 12V de alimentação
+    acs712_status_t status;
+    float current = acs712_read_current(&status);
+    
+    if (status == ACS712_DISCONNECTED) {
+        printf("Sensor Manager: ❌ ERRO - Sensor de corrente desconectado!\n");
+        return 0.0f;
+    }
+    
+    if (status == ACS712_HIGH_VOLTAGE_WARNING) {
+        printf("Sensor Manager: ⚠️ AVISO - Tensão do sensor alta (>2.6V). Inverta a polaridade para segurança do Pico!\n");
+    }
+
     return current * 12.0f;
 }
 

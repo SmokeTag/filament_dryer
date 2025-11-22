@@ -13,18 +13,14 @@
 #define ADC_VREF 3.3f
 #define ADC_RANGE 4096.0f
 
-static uint acs712_pin;
+static uint adc_channel;
 
-void acs712_init(uint gpio_pin) {
-    acs712_pin = gpio_pin;
-    adc_gpio_init(acs712_pin);
+void _acs712_init_internal(uint gpio_pin) {
+    adc_channel = gpio_pin - 26;
+    adc_gpio_init(gpio_pin);
 }
 
-float acs712_read_current(void) {
-    // Determinar canal ADC baseando-se no pino (26=0, 27=1, 28=2)
-    uint adc_channel = acs712_pin - 26;
-    if (adc_channel > 3) return 0.0f;
-
+float acs712_read_current(acs712_status_t *status) {
     adc_select_input(adc_channel);
 
     // Realizar múltiplas leituras para média (filtro simples)
@@ -41,6 +37,19 @@ float acs712_read_current(void) {
     
     // Converter valor ADC para Tensão no pino
     float voltage = (avg_adc / ADC_RANGE) * ADC_VREF;
+
+    // Validação de conexão e segurança
+    if (voltage < 0.5f) {
+        // Tensão muito baixa, provável fio desconectado ou sensor sem alimentação
+        if (status) *status = ACS712_DISCONNECTED;
+        return 0.0f;
+    } else if (voltage > 2.6f) {
+        // Tensão acima do ponto zero (2.5V)
+        // Se subir muito, pode queimar o ADC (max 3.3V)
+        if (status) *status = ACS712_HIGH_VOLTAGE_WARNING;
+    } else {
+        if (status) *status = ACS712_OK;
+    }
 
     // Converter Tensão para Corrente
     // Fórmula: Corrente = (TensãoLida - TensãoZero) / Sensibilidade

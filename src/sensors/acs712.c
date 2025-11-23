@@ -1,6 +1,9 @@
 #include "acs712.h"
 #include "hardware/adc.h"
+#include "logger.h"
 #include <math.h>
+
+#define TAG "ACS712"
 
 // Configurações do ACS712 5A
 // Alimentação típica de 5V
@@ -39,10 +42,11 @@ float acs712_read_current(acs712_status_t *status) {
     
     // Converter valor ADC para Tensão no pino
     float voltage = (avg_adc / ADC_RANGE) * ADC_VREF;
+    LOGD(TAG, "ACS712 GPIO %d: ADC=%.2f V=%.2fV", gpio_pin_stored, avg_adc, voltage);
 
     // Validar conexão e segurança
     if (voltage < 0.15f) {
-        // Tensão muito baixa, provável fio desconectado ou sensor sem alimentação
+        // Tensão muito baixa, sensor desabilitado ou desconectado
         if (status) {
             status->code = ACS712_DISCONNECTED;
             status->gpio_pin = gpio_pin_stored;

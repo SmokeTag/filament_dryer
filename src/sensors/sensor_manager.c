@@ -103,21 +103,25 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
 }
 
 // Leitura do sensor de energia (ACS712)
-static float sensor_manager_read_energy(void) {
+static float sensor_manager_read_energy(bool *disconnected) {
     // Retorna potência em Watts (P = V * I)
     // Hotend em 12V de alimentação
     acs712_status_t status;
     float current = acs712_read_current(&status);
     
     if (status.code == ACS712_DISCONNECTED) {
-        // Sensor desconectado - retornar 0W silenciosamente
-        LOGW(TAG, "ACS712: sensor disconnected (GPIO %d)", status.gpio_pin);
+        // Sensor desconectado - sistema pode funcionar sem ele
+        *disconnected = true;
+        LOGI(TAG, "ACS712: sensor disconnected (GPIO %d) - system operational without energy monitoring", status.gpio_pin);
         return 0.0f;
     }
+    
+    *disconnected = false;
     
     if (status.code == ACS712_HIGH_VOLTAGE_WARNING) {
         LOGW(TAG, "High voltage detected on GPIO %d (%.2fV > 2.6V). Reverse ACS712 polarity for Pico safety!", 
              status.gpio_pin, status.voltage);
+        return -current * 12.0f; // Retornar valor negativo para indicar que a conexão está invertida
     }
 
     return current * 12.0f;
@@ -140,22 +144,16 @@ static void check_heater_failure(sensor_data_t *sensor_data, bool heater_on) {
             
             if (acs712_error_count >= ACS712_MAX_CONSECUTIVE_ERRORS) {
                 sensor_data->heater_failure = true;
-                sensor_data->sensor_safe = false; // Trigger modo unsafe
                 
                 if (acs712_error_count == ACS712_MAX_CONSECUTIVE_ERRORS) {
-                    sensor_data->unsafe_event = true;
-                    LOGE(TAG, "CRITICAL: HEATING SYSTEM FAILURE!");
-                    LOGE(TAG, "Possible failure: HOTEND or MOSFET IRLZ44N");
-                    LOGE(TAG, "Check components and connections");
+                    LOGW(TAG, "WARNING: Possible heating system failure detected");
+                    LOGW(TAG, "If temperature doesn't rise, check hotend/MOSFET.");
                 }
             }
         } else {
             // Corrente detectada - reset contador
             acs712_error_count = 0;
         }
-    } else {
-        // Aquecedor desligado - reset contador
-        acs712_error_count = 0;
     }
     
     sensor_data->heater_error_count = acs712_error_count;
@@ -166,8 +164,17 @@ void sensor_manager_update(sensor_data_t *sensor_data, bool heater_on) {
     read_dht22_sensor(sensor_data);
     
     // Ler sensor de energia e incluir na mesma estrutura
-    sensor_data->energy_current = sensor_manager_read_energy();
+    bool acs712_disconnected = false;
+    sensor_data->energy_current = sensor_manager_read_energy(&acs712_disconnected);
+    sensor_data->acs712_disconnected = acs712_disconnected;
     
-    // Verificar falha do sistema de aquecimento
-    check_heater_failure(sensor_data, heater_on);
+    // Verificar falha do sistema de aquecimento (só se sensor estiver conectado)
+    if (!acs712_disconnected) {
+        check_heater_failure(sensor_data, heater_on);
+    } else {
+        // Sensor desconectado - não há detecção de falha do hotend
+        sensor_data->heater_failure = false;
+        sensor_data->heater_error_count = 0;
+        acs712_error_count = 0;
+    }
 }

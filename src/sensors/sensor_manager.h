@@ -23,6 +23,7 @@ typedef struct {
     float energy_current;       // Consumo de energia atual (W)
     bool heater_failure;        // TRUE se hotend/MOSFET falhou (sem corrente quando ligado)
     uint32_t heater_error_count; // Contador de erros do sistema de aquecimento
+    bool acs712_disconnected;   // TRUE se sensor ACS712 está desconectado (pode funcionar sem ele)
     char dht_status[64]; // Descrição da última falha do sensor
 } sensor_data_t;
 

@@ -37,13 +37,13 @@ void draw_static_interface(void) {
     
     st7789_draw_string(10, 235, "STATUS", WHITE, BLACK);
 
-    st7789_draw_string(10, 285, "UPTIME:", WHITE, BLACK);
+    st7789_draw_string(10, 295, "UPTIME:", WHITE, BLACK);
     st7789_draw_string(120, 235, "ERROS", WHITE, BLACK);
     st7789_draw_string(125, 250, "FALHAS:", WHITE, BLACK);
     st7789_draw_string(125, 265, "UNSAFE:", WHITE, BLACK);
     
     // Linha separadora inferior
-    st7789_fill_rect(0, 300, DISPLAY_WIDTH, 2, BLUE);
+    st7789_fill_rect(0, 310, DISPLAY_WIDTH, 2, BLUE);
 }
 
 // Atualiza apenas os valores de temperatura
@@ -111,19 +111,30 @@ void update_humidity_display(float humidity, float prev_humidity) {
 }
 
 // Atualiza apenas os valores de energia
-void update_energy_display(float current, float total, float prev_current, float prev_total) {
+void update_energy_display(float current, float total, float prev_current, float prev_total,
+                          bool disconnected, bool prev_disconnected) {
     char buffer[32];
     
-    if (current != prev_current) {
-        sprintf(buffer, "%.1fW  ", current);
+    // Atualizar consumo atual se mudou ou se status de conexão mudou
+    if (current != prev_current || disconnected != prev_disconnected) {
         st7789_fill_rect(70, 195, 100, 8, BLACK);
-        st7789_draw_string(70, 195, buffer, WHITE, BLACK);
+        if (disconnected) {
+            st7789_draw_string(70, 195, "OFF", GRAY, BLACK);
+        } else {
+            sprintf(buffer, "%.2fW  ", current);
+            st7789_draw_string(70, 195, buffer, WHITE, BLACK);
+        }
     }
     
-    if (total != prev_total) {
+    // Total de energia só é válido se sensor estiver conectado
+    if (!disconnected && (total != prev_total || prev_disconnected)) {
         sprintf(buffer, "%.2fkWh  ", total / 1000.0);
         st7789_fill_rect(70, 210, 120, 8, BLACK);
         st7789_draw_string(70, 210, buffer, YELLOW, BLACK);
+    } else if (disconnected && !prev_disconnected) {
+        // Se acabou de desconectar, mostrar OFF no total também
+        st7789_fill_rect(70, 210, 120, 8, BLACK);
+        st7789_draw_string(70, 210, "OFF", GRAY, BLACK);
     }
 }
 
@@ -165,7 +176,8 @@ void update_status_display(bool heater_on, float pwm_percent,
 
 // Atualiza estatísticas do sistema (falhas do sensor e eventos unsafe)
 void update_statistics_display(uint32_t sensor_failures, uint32_t unsafe_events,
-                              uint32_t prev_failures, uint32_t prev_unsafe) {
+                              uint32_t prev_failures, uint32_t prev_unsafe,
+                              bool heater_failure, bool prev_heater_failure) {
     char buffer[16];
     
     // Atualizar contador de falhas do sensor
@@ -180,6 +192,14 @@ void update_statistics_display(uint32_t sensor_failures, uint32_t unsafe_events,
         sprintf(buffer, "%lu   ", unsafe_events);
         st7789_fill_rect(190, 265, 50, 8, BLACK);
         st7789_draw_string(190, 265, buffer, (unsafe_events > 0) ? RED : WHITE, BLACK);
+    }
+    
+    // Mostrar [HEATER FAIL] abaixo de UNSAFE se houver falha
+    if (heater_failure != prev_heater_failure) {
+        st7789_fill_rect(120, 280, 120, 8, BLACK);  // Limpar área
+        if (heater_failure) {
+            st7789_draw_string(125, 280, "HEATER FAILED", RED, BLACK);
+        }
     }
 }
 
@@ -204,8 +224,8 @@ void update_uptime_display(uint32_t uptime, uint32_t prev_uptime) {
             sprintf(buffer, "%02dm      ", minutes);
         }
         
-        st7789_fill_rect(74, 285, 150, 8, BLACK);
-        st7789_draw_string(74, 285, buffer, WHITE, BLACK);
+        st7789_fill_rect(74, 295, 150, 8, BLACK);
+        st7789_draw_string(74, 295, buffer, WHITE, BLACK);
     }
 }
 
@@ -255,7 +275,8 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
     update_humidity_display(data->humidity, prev_data->humidity);
     
     update_energy_display(data->energy_current, data->energy_total,
-                         prev_data->energy_current, prev_data->energy_total);
+                         prev_data->energy_current, prev_data->energy_total,
+                         data->acs712_disconnected, prev_data->acs712_disconnected);
     
     update_status_display(data->heater_on, data->pwm_percent,
                          prev_data->heater_on, prev_data->pwm_percent);
@@ -263,7 +284,8 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
     update_uptime_display(data->uptime, prev_data->uptime);
     
     update_statistics_display(data->total_sensor_failures, data->total_unsafe_events,
-                             prev_data->total_sensor_failures, prev_data->total_unsafe_events);
+                             prev_data->total_sensor_failures, prev_data->total_unsafe_events,
+                             data->heater_failure, prev_data->heater_failure);
 }
 
 // Tela de inicialização

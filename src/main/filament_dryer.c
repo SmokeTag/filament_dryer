@@ -3,9 +3,6 @@
 // TODO: Implementar controle de temperatura baseado em PID
 // TODO: Adicionar visualização para falha do hotend na interface
 // TODO: HARDWARE: Adicionar switch com saida do sensor ACS712 no pin 1, pin 2 no GPIO26 e pin 3 no GND
-// SOFTWARE: entender que se GPIO26 ler 0V, o sensor está desligado. Não quero que isso seja tratado
-// como erro crítico, o sistema pode funcionar sem o sensor de energia, removendo a detecção de falhas do hotend
-// TODO: habilitar possibilidade de enviar estado OFF para display de consumo de energia quando o sensor estiver desconectado
 
 /**
  * Filament Dryer Controller - Main Module
@@ -64,6 +61,7 @@ static void process_sensor_data(sensor_data_t *sensor_data, dryer_data_t *dryer_
     dryer_data->sensor_safe = sensor_data->sensor_safe;
     dryer_data->energy_current = sensor_data->energy_current;
     dryer_data->heater_failure = sensor_data->heater_failure;
+    dryer_data->acs712_disconnected = sensor_data->acs712_disconnected;
     dryer_data->total_sensor_failures += sensor_data->sensor_failure_event ? 1 : 0;
     dryer_data->total_unsafe_events += sensor_data->unsafe_event ? 1 : 0;
     strcpy(dryer_data->dht_status, sensor_data->dht_status);
@@ -106,6 +104,7 @@ int main() {
         .total_sensor_failures = 0,
         .total_unsafe_events = 0,
         .heater_failure = false,
+        .acs712_disconnected = false,
         .dht_status = "Nenhum erro"
     };
     
@@ -192,7 +191,7 @@ int main() {
             // Log no serial com status de segurança e PWM
             const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "UNSAFE";
             const char* heater_status = dryer_data.heater_failure ? "[HEATER FAIL]" : "";
-            LOGI(TAG, "T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s",
+            LOGI(TAG, "T:%.1f°C H:%.1f%% E:%.2fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
                    dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,

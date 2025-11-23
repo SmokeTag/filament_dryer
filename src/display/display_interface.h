@@ -19,6 +19,7 @@ typedef struct {
     uint32_t total_sensor_failures;  // Total de falhas de leitura do sensor
     uint32_t total_unsafe_events;    // Total de entradas em modo unsafe
     bool heater_failure;             // Falha detectada no sistema de aquecimento
+    bool acs712_disconnected;        // Sensor ACS712 desconectado (sistema pode operar sem ele)
     char dht_status[64];      // Última mensagem de erro do sensor
 } dryer_data_t;
 
@@ -31,9 +32,11 @@ void display_test_characters(void);
 // Funções auxiliares específicas (podem ser privadas se necessário)
 void update_temperature_display(float temperature, float target, float prev_temp, float prev_target);
 void update_humidity_display(float humidity, float prev_humidity);
-void update_energy_display(float current, float total, float prev_current, float prev_total);
+void update_energy_display(float current, float total, float prev_current, float prev_total, 
+                          bool disconnected, bool prev_disconnected);
 void update_statistics_display(uint32_t sensor_failures, uint32_t unsafe_events,
-                              uint32_t prev_failures, uint32_t prev_unsafe);
+                              uint32_t prev_failures, uint32_t prev_unsafe,
+                              bool heater_failure, bool prev_heater_failure);
 void update_status_display(bool heater_on, float pwm_percent, 
                           bool prev_heater, float prev_pwm);
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime);

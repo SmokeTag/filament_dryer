@@ -29,6 +29,7 @@
 #define MAGENTA 0xF81F
 #define YELLOW  0xFFE0
 #define WHITE   0xFFFF
+#define GRAY    0x7BEF  // Cinza médio (RGB 128,128,128)
 
 // ST7789 Commands
 #define ST7789_SWRESET 0x01

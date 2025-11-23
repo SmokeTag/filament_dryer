@@ -26,10 +26,22 @@
 #define ANSI_COLOR_CYAN    "\x1b[36m"
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
-// Helper macro to extract just the filename from __FILE__
-#define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : \
-                     (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__))
+// Helper function to extract just the filename from a path
+static inline const char *extract_filename(const char *path) {
+    const char *slash = strrchr(path, '/');
+    const char *backslash = strrchr(path, '\\');
+    if (slash && backslash) {
+        return (slash > backslash) ? slash + 1 : backslash + 1;
+    } else if (slash) {
+        return slash + 1;
+    } else if (backslash) {
+        return backslash + 1;
+    } else {
+        return path;
+    }
+}
 
+#define __FILENAME__ (extract_filename(__FILE__))
 // Log macros with timestamp, file, line, and module tags
 #define LOGE(tag, ...) do { \
     if (CURRENT_LOG_LEVEL >= LOG_LEVEL_ERROR) { \

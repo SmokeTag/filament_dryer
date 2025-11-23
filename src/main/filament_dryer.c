@@ -1,4 +1,4 @@
-// TODO: Think about hearter on logic (possible good idea to define if heater >= 75% to make sure transistor is fully on)
+// TODO: Think about heater on logic (possible good idea to define if heater >= 75% to make sure transistor is fully on)
 // TODO: Think about adding a LED indicator
 // TODO: Implementar controle de temperatura baseado em PID
 // TODO: Adicionar visualização para falha do hotend na interface

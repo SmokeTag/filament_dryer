@@ -52,6 +52,7 @@ target_include_directories(filament_dryer PRIVATE
     src/display
     src/sensors  
     src/controls
+    src/utils
     )
 
 # pull in common dependencies

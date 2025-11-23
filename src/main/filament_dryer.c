@@ -1,5 +1,11 @@
+// TODO: Think about hearter on logic (possible good idea to define if heater >= 75% to make sure transistor is fully on)
 // TODO: Think about adding a LED indicator
 // TODO: Implementar controle de temperatura baseado em PID
+// TODO: Adicionar visualização para falha do hotend na interface
+// TODO: HARDWARE: Adicionar switch com saida do sensor ACS712 no pin 1, pin 2 no GPIO26 e pin 3 no GND
+// SOFTWARE: entender que se GPIO26 ler 0V, o sensor está desligado. Não quero que isso seja tratado
+// como erro crítico, o sistema pode funcionar sem o sensor de energia, removendo a detecção de falhas do hotend
+// TODO: habilitar possibilidade de enviar estado OFF para display de consumo de energia quando o sensor estiver desconectado
 
 /**
  * Filament Dryer Controller - Main Module
@@ -22,9 +28,12 @@
 #include "sensor_manager.h"
 #include "hardware_control.h"
 #include "temperature_control.h"
+#include "logger.h"
 #include "pico/time.h"
 #include <stdio.h>
 #include <string.h>
+
+#define TAG "Main"
 
 // Configurações principais do sistema
 #define UPDATE_INTERVAL_MS 5000        // Atualiza a cada 5 segundos
@@ -40,11 +49,11 @@ void system_init(void) {
     sensor_manager_init();
     
     // Display
-    printf("Main: Inicializando display...\n");
+    LOGI(TAG, "Initializing display...");
     st7789_init();
-    printf("Main: Display inicializado!\n");
+    LOGI(TAG, "Display initialized");
     
-    printf("Main: Sistema da estufa completamente inicializado!\n");
+    LOGI(TAG, "Dryer system fully initialized");
 }
 
 // Função para processar dados dos sensores e atualizar dryer_data
@@ -61,17 +70,23 @@ static void process_sensor_data(sensor_data_t *sensor_data, dryer_data_t *dryer_
 }
 
 int main() {
-    // Initialize standard I/O for debugging
+    // Variáveis para controlar atualizações
+    uint32_t last_update = 0;
+    uint32_t start_time = to_ms_since_boot(get_absolute_time());
+
     stdio_init_all();
-    sleep_ms(1500);  // Aguarda estabilizar USB
+    absolute_time_t deadline = make_timeout_time_ms(5000);
+    while (!stdio_usb_connected() && !time_reached(deadline)) {
+        sleep_ms(10); // Aguarda estabilizar USB
+    }  
     
     printf("\n=== ESTUFA DE FILAMENTOS v2.0 ===\n");
-    printf("Main: Iniciando sistema...\n");
+    LOGI(TAG, "Starting system...");
     
     // Initialize the onboard LED
     int rc = hardware_control_led_init();
     if (rc != 0) {
-        printf("Main: Erro ao inicializar LED\n");
+        LOGE(TAG, "Failed to initialize LED");
     }
     
     // Inicializar todos os módulos do sistema
@@ -94,28 +109,18 @@ int main() {
         .dht_status = "Nenhum erro"
     };
     
-    printf("Main: Sistema iniciado! Temperatura alvo: %.0f°C\n", dryer_data.temp_target);
-    
-    // Tela de inicialização com teste de caracteres
-    printf("Main: Iniciando tela de teste de caracteres...\n");
-    display_test_characters();
-    printf("Main: Tela de teste concluída, aguardando 5s...\n");
-    sleep_ms(5000);
+    LOGI(TAG, "System started (Target: %.0f°C)", dryer_data.temp_target);
     
     // Tela de inicialização normal
-    printf("Main: Iniciando tela de inicialização...\n");
+    LOGI(TAG, "Starting initialization screen...");
     display_init_screen();
-    printf("Main: Tela de inicialização concluída, aguardando 3s...\n");
+    LOGI(TAG, "Initialization screen completed, waiting 3s...");
     sleep_ms(3000);
     
     // Desenhar interface estática uma única vez
-    printf("Main: Desenhando interface estática...\n");
+    LOGI(TAG, "Drawing static interface...");
     draw_static_interface();
-    printf("Main: Interface estática desenhada!\n");
-    
-    // Variáveis para controlar atualizações
-    uint32_t last_update = 0;
-    uint32_t start_time = to_ms_since_boot(get_absolute_time());
+    LOGI(TAG, "Static interface drawn");
     
     // Estrutura para guardar valores anteriores
     dryer_data_t prev_data = dryer_data;
@@ -126,13 +131,13 @@ int main() {
     // Controle de tela de erro
     static bool error_screen_displayed = false;
     
-    printf("Main: 🎯 Temperatura alvo inicial: %.0f°C\n", dryer_data.temp_target);
+    LOGI(TAG, "Initial target temperature: %.0f°C", dryer_data.temp_target);
     
-    printf("Main: Atualizando interface inicial...\n");
+    LOGD(TAG, "Updating initial interface...");
     update_interface_smart(&dryer_data, &prev_data);
-    printf("Main: Interface inicial atualizada!\n");
+    LOGD(TAG, "Initial interface updated");
     
-    printf("Main: Entrando no loop principal...\n");
+    LOGI(TAG, "Entering main loop...");
     
     while (true) {
         uint32_t current_time = to_ms_since_boot(get_absolute_time());
@@ -165,7 +170,7 @@ int main() {
                 // Sensor falhou - mostrar tela de erro crítica
                 display_critical_error_screen();
                 error_screen_displayed = true;
-                printf("Main: 🚨 Tela de erro exibida - sensor DHT22 falhou!\n");
+                LOGE(TAG, "CRITICAL: Error screen displayed - Sensor failed!");
             } else if (dryer_data.sensor_safe && error_screen_displayed) {
                 // Sensor recuperou - voltar à interface normal
                 draw_static_interface();
@@ -177,7 +182,7 @@ int main() {
                 prev_data.total_sensor_failures = -1;
                 prev_data.total_unsafe_events = -1;
                 update_interface_smart(&dryer_data, &prev_data);
-                printf("Main: ✅ Interface principal restaurada - sensor DHT22 recuperado!\n");
+                LOGI(TAG, "Main interface restored - Sensor recovered");
             } else if (dryer_data.sensor_safe && !error_screen_displayed) {
                 // Operação normal - atualizar interface normalmente
                 update_interface_smart(&dryer_data, &prev_data);
@@ -185,9 +190,9 @@ int main() {
             // Se sensor falhou E tela já está exibida, não fazer nada (manter tela de erro)
             
             // Log no serial com status de segurança e PWM
-            const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "⚠️UNSAFE";
+            const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "UNSAFE";
             const char* heater_status = dryer_data.heater_failure ? "[HEATER FAIL]" : "";
-            printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s\n",
+            LOGI(TAG, "T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
                    dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,
@@ -199,7 +204,7 @@ int main() {
         
         // Se temperatura alvo mudou, atualizar display imediatamente
         if (temp_changed) {
-            printf("Main: 🎮 Temperatura alvo mudou para %.0f°C\n", dryer_data.temp_target);
+            LOGI(TAG, "Target temperature changed to %.0f°C", dryer_data.temp_target);
             
             // Atualizar display imediatamente (sem esperar os 5s)
             update_temperature_display(dryer_data.temperature, dryer_data.temp_target,

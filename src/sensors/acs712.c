@@ -14,9 +14,11 @@
 #define ADC_RANGE 4096.0f
 
 static uint adc_channel;
+static uint gpio_pin_stored;
 
 void _acs712_init_internal(uint gpio_pin) {
     adc_channel = gpio_pin - 26;
+    gpio_pin_stored = gpio_pin;
     adc_gpio_init(gpio_pin);
 }
 
@@ -38,17 +40,29 @@ float acs712_read_current(acs712_status_t *status) {
     // Converter valor ADC para Tensão no pino
     float voltage = (avg_adc / ADC_RANGE) * ADC_VREF;
 
-    // Validação de conexão e segurança
-    if (voltage < 0.5f) {
+    // Validar conexão e segurança
+    if (voltage < 0.15f) {
         // Tensão muito baixa, provável fio desconectado ou sensor sem alimentação
-        if (status) *status = ACS712_DISCONNECTED;
+        if (status) {
+            status->code = ACS712_DISCONNECTED;
+            status->gpio_pin = gpio_pin_stored;
+            status->voltage = voltage;
+        }
         return 0.0f;
     } else if (voltage > 2.6f) {
         // Tensão acima do ponto zero (2.5V)
         // Se subir muito, pode queimar o ADC (max 3.3V)
-        if (status) *status = ACS712_HIGH_VOLTAGE_WARNING;
+        if (status) {
+            status->code = ACS712_HIGH_VOLTAGE_WARNING;
+            status->gpio_pin = gpio_pin_stored;
+            status->voltage = voltage;
+        }
     } else {
-        if (status) *status = ACS712_OK;
+        if (status) {
+            status->code = ACS712_OK;
+            status->gpio_pin = gpio_pin_stored;
+            status->voltage = voltage;
+        }
     }
 
     // Converter Tensão para Corrente

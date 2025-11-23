@@ -1,7 +1,10 @@
 #include "button_controller.h"
+#include "logger.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include <stdio.h>
+
+#define TAG "BtnCtrl"
 
 // Variáveis privadas do módulo
 static bool button_state = false;
@@ -29,7 +32,7 @@ void button_controller_init(void) {
     button_in_fast_mode = false;
     button_last_fast_increment = 0;
     
-    printf("Button Controller: Inicializado no GPIO %d\n", BUTTON_PIN);
+    LOGI(TAG, "Initialized (Button: GPIO %d)", BUTTON_PIN);
 }
 
 // Debouncing digital do botão
@@ -74,7 +77,7 @@ bool button_controller_update(dryer_data_t *data) {
         button_in_fast_mode = false;
         button_press_start = current_time;
         
-        printf("🔘 Button: Pressionado - aguardando soltar...\n");
+        LOGD(TAG, "Button pressed - waiting for release...");
         return false;  // Sem mudança de temperatura ainda
     }
     
@@ -92,12 +95,12 @@ bool button_controller_update(dryer_data_t *data) {
             if (data->temp_target > TEMP_MAX) {
                 data->temp_target = TEMP_MIN;
             }
-            printf("🌡️ Button: Pressão curta +1°C → %.0f°C\n", data->temp_target);
+            LOGI(TAG, "Short press: +1°C -> %.0f°C", data->temp_target);
             temp_changed = true;
         } else {
             // Pressão longa: SEM incremento adicional se já estava no modo rápido
             if (was_in_fast_mode) {
-                printf("🌡️ Button: Modo rápido finalizado - %.0f°C\n", data->temp_target);
+                LOGD(TAG, "Fast mode ended - %.0f°C", data->temp_target);
                 // temp_changed fica false - não houve mudança ao soltar
             } else {
                 // Pressão longa mas não chegou a ativar modo rápido - dar +5°C
@@ -105,7 +108,7 @@ bool button_controller_update(dryer_data_t *data) {
                 if (data->temp_target > TEMP_MAX) {
                     data->temp_target = TEMP_MIN;
                 }
-                printf("🌡️ Button: Pressão longa +5°C → %.0f°C\n", data->temp_target);
+                LOGI(TAG, "Long press: +5°C -> %.0f°C", data->temp_target);
                 temp_changed = true;
             }
         }
@@ -120,14 +123,14 @@ bool button_controller_update(dryer_data_t *data) {
             if (!button_in_fast_mode) {
                 button_in_fast_mode = true;
                 button_last_fast_increment = current_time;
-                printf("🚀 Button: Modo rápido ativado!\n");
+                LOGI(TAG, "Fast mode activated!");
                 
                 // Primeiro incremento rápido imediato ao ativar modo
                 data->temp_target += TEMP_STEP_FAST;
                 if (data->temp_target > TEMP_MAX) {
                     data->temp_target = TEMP_MIN;
                 }
-                printf("🌡️ Button: Modo rápido +5°C → %.0f°C\n", data->temp_target);
+                LOGI(TAG, "Fast mode: +5°C -> %.0f°C", data->temp_target);
                 temp_changed = true;
             }
             
@@ -140,7 +143,7 @@ bool button_controller_update(dryer_data_t *data) {
                     data->temp_target = TEMP_MIN;
                 }
                 
-                printf("🌡️ Button: Modo rápido +5°C → %.0f°C\n", data->temp_target);
+                LOGD(TAG, "Fast mode: +5°C -> %.0f°C", data->temp_target);
                 temp_changed = true;
             }
         }

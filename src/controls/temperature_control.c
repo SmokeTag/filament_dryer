@@ -1,10 +1,13 @@
 #include "temperature_control.h"
 #include "hardware_control.h"
+#include "logger.h"
 #include <stdio.h>
+
+#define TAG "TempCtrl"
 
 // Controle automático da temperatura COM SEGURANÇA CRÍTICA
 void temperature_control_update(dryer_data_t *data, bool sensor_safe) {
-    // 🚨 VERIFICAÇÃO DE SEGURANÇA CRÍTICA - DHT22 deve estar funcionando
+    // CRITICAL SAFETY CHECK - Sensor must be operational
     if (!sensor_safe) {
         // PARADA DE EMERGÊNCIA - Desligar aquecedor imediatamente
         data->heater_on = false;
@@ -12,7 +15,7 @@ void temperature_control_update(dryer_data_t *data, bool sensor_safe) {
         // Aplicar controles de hardware imediatamente
         hardware_control_heater(false);  // FORÇA desligamento do aquecedor
         
-        printf("Temperature Control: 🚨 MODO SEGURANÇA: Aquecedor desabilitado - DHT22 falhou\n");
+        LOGW(TAG, "SAFETY MODE: Heater disabled - Sensor failed");
         return; // Sair sem controle de temperatura
     }
     

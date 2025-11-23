@@ -1,7 +1,10 @@
 #include "hardware_control.h"
+#include "logger.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include <stdio.h>
+
+#define TAG "HwCtrl"
 
 // Pico W devices use a GPIO on the WIFI chip for the LED
 #ifdef CYW43_WL_GPIO_LED_PIN
@@ -27,7 +30,7 @@ void hardware_control_init(void) {
     last_led_update = 0;
     led_state = false;
     
-    printf("Hardware Control: Inicializado (Heater: GPIO %d)\n", HEATER_PIN);
+    LOGI(TAG, "Initialized (Heater: GPIO %d)", HEATER_PIN);
 }
 
 // Controle do aquecedor
@@ -84,14 +87,14 @@ int hardware_control_led_init(void) {
     // A device like Pico that uses a GPIO for the LED will define PICO_DEFAULT_LED_PIN
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    printf("Hardware Control: LED inicializado no GPIO padrão\n");
+    LOGI(TAG, "LED initialized (Default GPIO)");
     return PICO_OK;
 #elif defined(CYW43_WL_GPIO_LED_PIN)
     // For Pico W devices we need to initialise the driver etc
-    printf("Hardware Control: LED inicializado no Pico W (CYW43)\n");
+    LOGI(TAG, "LED initialized (Pico W CYW43)");
     return cyw43_arch_init();
 #else
-    printf("Hardware Control: Nenhum LED definido para esta placa\n");
+    LOGW(TAG, "No LED defined for this board");
     return PICO_OK;
 #endif
 }

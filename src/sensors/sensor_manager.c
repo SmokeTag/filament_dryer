@@ -1,11 +1,14 @@
 #include "sensor_manager.h"
 #include "dht22.h"
 #include "acs712.h"
+#include "logger.h"
 #include "hardware/adc.h"
 #include "pico/time.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define TAG "SensorMgr"
 
 // Variáveis privadas do módulo DHT22
 static uint32_t last_dht22_read = 0;
@@ -29,7 +32,7 @@ void sensor_manager_init(void) {
     dht22_error_count = 0;
     acs712_error_count = 0;
     
-    printf("Sensor Manager: Inicializado (DHT22: GPIO %d, Energy: GPIO %d)\n", 
+    LOGI(TAG, "Initialized (DHT22: GPIO %d, ACS712: GPIO %d)", 
            DHT22_PIN, ENERGY_SENSOR_PIN);
 }
 
@@ -46,10 +49,10 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
     if (!dht22_initialized) {
         dht22_init(DHT22_PIN);
         dht22_initialized = true;
-        printf("*** Sensor Manager: DHT22 inicializado no GPIO %d ***\n", DHT22_PIN);
+        LOGI(TAG, "DHT22 initialized (GPIO %d)", DHT22_PIN);
         last_dht22_read = current_time;
         sensor_data->sensor_safe = true;
-        printf("Sensor Manager: DHT22 pronto para leituras!\n");
+        LOGI(TAG, "DHT22 ready for readings");
     }
     
     // Verificar se já passou tempo suficiente desde a última leitura
@@ -60,14 +63,14 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
         dht22_result_t result = dht22_read(&new_temp, &new_hum);
         
         if (result == DHT22_OK) {
-            // ✅ SENSOR OK - Sistema pode operar normalmente
+            // SENSOR OK - Sistema pode operar normalmente
             last_temperature = new_temp;
             last_humidity = new_hum;
             dht22_error_count = 0; // Reset contador de erros
             sensor_data->sensor_safe = true;
             
         } else {
-            // ❌ ERRO CRÍTICO - Reportar evento de falha
+            // ERRO CRÍTICO - Reportar evento de falha
             dht22_error_count++;
             sensor_data->sensor_failure_event = true;  // Reportar evento de falha
             
@@ -75,7 +78,7 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
             snprintf(sensor_data->dht_status, sizeof(sensor_data->dht_status), 
                     "%s", dht22_error_string(result));
             
-            printf("Sensor Manager: ❌ DHT22 ERRO CRÍTICO #%lu: %s\n", 
+            LOGE(TAG, "DHT22 CRITICAL ERROR #%lu: %s", 
                    dht22_error_count, dht22_error_string(result));
             
             // PARADA DE SEGURANÇA se muitos erros consecutivos
@@ -84,10 +87,10 @@ static void read_dht22_sensor(sensor_data_t *sensor_data) {
                 if (dht22_error_count == DHT22_MAX_CONSECUTIVE_ERRORS) {
                     // Apenas logar na primeira vez que atingir o limite
                     sensor_data->unsafe_event = true;  // Reportar evento unsafe
-                    printf("Sensor Manager: 🚨 ALERTA DE SEGURANÇA: DHT22 FALHOU! 🚨\n");
-                    printf("Sensor Manager: 🔥 AQUECEDOR DESABILITADO POR SEGURANÇA\n");
-                    printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES DO SENSOR\n");
-                    printf("Sensor Manager: 📊 Erros consecutivos: %lu\n", dht22_error_count);
+                    LOGE(TAG, "CRITICAL: DHT22 SENSOR FAILURE!");
+                    LOGE(TAG, "Heater disabled for safety");
+                    LOGE(TAG, "Check sensor connections");
+                    LOGE(TAG, "Consecutive errors: %lu", dht22_error_count);
                 }
             }
         }
@@ -106,13 +109,15 @@ static float sensor_manager_read_energy(void) {
     acs712_status_t status;
     float current = acs712_read_current(&status);
     
-    if (status == ACS712_DISCONNECTED) {
-        printf("Sensor Manager: ❌ ERRO - Sensor de corrente desconectado!\n");
+    if (status.code == ACS712_DISCONNECTED) {
+        // Sensor desconectado - retornar 0W silenciosamente
+        LOGW(TAG, "ACS712: sensor disconnected (GPIO %d)", status.gpio_pin);
         return 0.0f;
     }
     
-    if (status == ACS712_HIGH_VOLTAGE_WARNING) {
-        printf("Sensor Manager: ⚠️ AVISO - Tensão do sensor alta (>2.6V). Inverta a polaridade para segurança do Pico!\n");
+    if (status.code == ACS712_HIGH_VOLTAGE_WARNING) {
+        LOGW(TAG, "High voltage detected on GPIO %d (%.2fV > 2.6V). Reverse ACS712 polarity for Pico safety!", 
+             status.gpio_pin, status.voltage);
     }
 
     return current * 12.0f;
@@ -129,8 +134,9 @@ static void check_heater_failure(sensor_data_t *sensor_data, bool heater_on) {
             // Aquecedor ligado mas SEM corrente - possível falha
             acs712_error_count++;
             
-            printf("Sensor Manager: ⚠️ AVISO - Aquecedor ligado mas sem corrente! Erro #%lu\n", 
-                   acs712_error_count);
+            LOGW(TAG, "ACS712: Heater ON but no current detected (%.2fW < %.2fW threshold) - Error #%lu/%lu", 
+                sensor_data->energy_current, ACS712_MIN_ENERGY_THRESHOLD, 
+                acs712_error_count, (uint32_t)ACS712_MAX_CONSECUTIVE_ERRORS);
             
             if (acs712_error_count >= ACS712_MAX_CONSECUTIVE_ERRORS) {
                 sensor_data->heater_failure = true;
@@ -138,9 +144,9 @@ static void check_heater_failure(sensor_data_t *sensor_data, bool heater_on) {
                 
                 if (acs712_error_count == ACS712_MAX_CONSECUTIVE_ERRORS) {
                     sensor_data->unsafe_event = true;
-                    printf("Sensor Manager: 🚨 FALHA CRÍTICA DO SISTEMA DE AQUECIMENTO! 🚨\n");
-                    printf("Sensor Manager: 🔥 Possível falha: HOTEND ou MOSFET IRLZ44N\n");
-                    printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES E COMPONENTES\n");
+                    LOGE(TAG, "CRITICAL: HEATING SYSTEM FAILURE!");
+                    LOGE(TAG, "Possible failure: HOTEND or MOSFET IRLZ44N");
+                    LOGE(TAG, "Check components and connections");
                 }
             }
         } else {

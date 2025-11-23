@@ -7,6 +7,12 @@ typedef enum {
     ACS712_OK,
     ACS712_DISCONNECTED,        // Tensão muito baixa (< 0.5V), provável desconexão
     ACS712_HIGH_VOLTAGE_WARNING // Tensão acima de 2.6V, risco para o ADC (3.3V max)
+} acs712_status_code_t;
+
+typedef struct {
+    acs712_status_code_t code;
+    uint gpio_pin;  // GPIO onde o sensor está conectado
+    float voltage;  // Tensão lida (para diagnóstico)
 } acs712_status_t;
 
 /**

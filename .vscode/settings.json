@@ -39,6 +39,7 @@
     "raspberry-pi-pico.ninjaPath": "${HOME}/.pico-sdk/ninja/v1.12.1/ninja",
     "files.associations": {
         "stdbool.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "button_controller.h": "c"
     }
 }

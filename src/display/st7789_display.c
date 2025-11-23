@@ -1,6 +1,9 @@
 #include "st7789_display.h"
+#include "logger.h"
 #include <string.h>
 #include <stdio.h>
+
+#define TAG "Display"
 
 // Complete 8x8 font (bitmap) - ASCII characters 32-126
 static const uint8_t font8x8[128][8] = {
@@ -140,14 +143,14 @@ void st7789_init(void) {
     gpio_put(PIN_DC, 0);   // DC low
     gpio_put(PIN_RST, 1);  // RST high
     
-    printf("Fazendo reset do display...\n");
+    LOGD(TAG, "Resetting display...");
     // Reset sequence
     gpio_put(PIN_RST, 0);
     sleep_ms(10);  // Reduzido de 50ms
     gpio_put(PIN_RST, 1);
     sleep_ms(50);  // Reduzido de 200ms
     
-    printf("Enviando comandos de inicialização...\n");
+    LOGD(TAG, "Sending initialization commands...");
     // Initialize ST7789
     st7789_write_cmd(ST7789_SWRESET);  // Software reset
     sleep_ms(50);  // Reduzido de 200ms
@@ -178,10 +181,10 @@ void st7789_init(void) {
     st7789_write_cmd(ST7789_DISPON);   // Display on
     sleep_ms(20);  // Reduzido de 200ms
     
-    printf("Display ST7789 inicializado com sucesso!\n");
+    LOGI(TAG, "ST7789 display initialized successfully");
     
     // Clear screen to black
-    printf("Limpando tela...\n");
+    LOGD(TAG, "Clearing screen...");
     st7789_fill_color(BLACK);
 }
 

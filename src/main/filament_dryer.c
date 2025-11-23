@@ -1,8 +1,8 @@
 // TODO: Think about heater on logic (possible good idea to define if heater >= 75% to make sure transistor is fully on)
-// TODO: Think about adding a LED indicator
 // TODO: Implementar controle de temperatura baseado em PID
-// TODO: Adicionar visualização para falha do hotend na interface
 // TODO: HARDWARE: Adicionar switch com saida do sensor ACS712 no pin 1, pin 2 no GPIO26 e pin 3 no GND
+// TODO: display adicionar uptime ao display e remover flickering via atualização inteligente
+
 
 /**
  * Filament Dryer Controller - Main Module

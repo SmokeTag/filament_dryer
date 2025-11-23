@@ -13,6 +13,7 @@ static float last_temperature = 25.0;
 static float last_humidity = 50.0;
 static bool dht22_initialized = false;
 static uint32_t dht22_error_count = 0;
+static uint32_t acs712_error_count = 0;
 
 // Inicialização do módulo de sensores
 void sensor_manager_init(void) {
@@ -26,6 +27,7 @@ void sensor_manager_init(void) {
     last_humidity = 50.0;
     dht22_initialized = false;
     dht22_error_count = 0;
+    acs712_error_count = 0;
     
     printf("Sensor Manager: Inicializado (DHT22: GPIO %d, Energy: GPIO %d)\n", 
            DHT22_PIN, ENERGY_SENSOR_PIN);
@@ -116,10 +118,50 @@ static float sensor_manager_read_energy(void) {
     return current * 12.0f;
 }
 
+// Detecção de falha do hotend
+static void check_heater_failure(sensor_data_t *sensor_data, bool heater_on) {
+    // Inicializar como sem falha
+    sensor_data->heater_failure = false;
+    
+    // Se aquecedor está ligado, verificar se está consumindo energia
+    if (heater_on) {
+        if (sensor_data->energy_current < ACS712_MIN_ENERGY_THRESHOLD) {
+            // Aquecedor ligado mas SEM corrente - possível falha
+            acs712_error_count++;
+            
+            printf("Sensor Manager: ⚠️ AVISO - Aquecedor ligado mas sem corrente! Erro #%lu\n", 
+                   acs712_error_count);
+            
+            if (acs712_error_count >= ACS712_MAX_CONSECUTIVE_ERRORS) {
+                sensor_data->heater_failure = true;
+                sensor_data->sensor_safe = false; // Trigger modo unsafe
+                
+                if (acs712_error_count == ACS712_MAX_CONSECUTIVE_ERRORS) {
+                    sensor_data->unsafe_event = true;
+                    printf("Sensor Manager: 🚨 FALHA CRÍTICA DO SISTEMA DE AQUECIMENTO! 🚨\n");
+                    printf("Sensor Manager: 🔥 Possível falha: HOTEND ou MOSFET IRLZ44N\n");
+                    printf("Sensor Manager: 🔧 VERIFIQUE CONEXÕES E COMPONENTES\n");
+                }
+            }
+        } else {
+            // Corrente detectada - reset contador
+            acs712_error_count = 0;
+        }
+    } else {
+        // Aquecedor desligado - reset contador
+        acs712_error_count = 0;
+    }
+    
+    sensor_data->heater_error_count = acs712_error_count;
+}
+
 // Atualizar todos os sensores
-void sensor_manager_update(sensor_data_t *sensor_data) {
+void sensor_manager_update(sensor_data_t *sensor_data, bool heater_on) {
     read_dht22_sensor(sensor_data);
     
     // Ler sensor de energia e incluir na mesma estrutura
     sensor_data->energy_current = sensor_manager_read_energy();
+    
+    // Verificar falha do sistema de aquecimento
+    check_heater_failure(sensor_data, heater_on);
 }

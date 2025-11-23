@@ -18,6 +18,7 @@ typedef struct {
     float pwm_percent;      // Potência PWM aplicada (0-100%)
     uint32_t total_sensor_failures;  // Total de falhas de leitura do sensor
     uint32_t total_unsafe_events;    // Total de entradas em modo unsafe
+    bool heater_failure;             // Falha detectada no sistema de aquecimento
     char dht_status[64];      // Última mensagem de erro do sensor
 } dryer_data_t;
 

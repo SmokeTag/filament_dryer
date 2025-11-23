@@ -54,6 +54,7 @@ static void process_sensor_data(sensor_data_t *sensor_data, dryer_data_t *dryer_
     dryer_data->humidity = sensor_data->humidity;
     dryer_data->sensor_safe = sensor_data->sensor_safe;
     dryer_data->energy_current = sensor_data->energy_current;
+    dryer_data->heater_failure = sensor_data->heater_failure;
     dryer_data->total_sensor_failures += sensor_data->sensor_failure_event ? 1 : 0;
     dryer_data->total_unsafe_events += sensor_data->unsafe_event ? 1 : 0;
     strcpy(dryer_data->dht_status, sensor_data->dht_status);
@@ -64,7 +65,7 @@ int main() {
     stdio_init_all();
     sleep_ms(1500);  // Aguarda estabilizar USB
     
-    printf("\n=== ESTUFA DE FILAMENTOS v2.0 (Modular) ===\n");
+    printf("\n=== ESTUFA DE FILAMENTOS v2.0 ===\n");
     printf("Main: Iniciando sistema...\n");
     
     // Initialize the onboard LED
@@ -89,6 +90,7 @@ int main() {
         .pwm_percent = 0.0,
         .total_sensor_failures = 0,
         .total_unsafe_events = 0,
+        .heater_failure = false,
         .dht_status = "Nenhum erro"
     };
     
@@ -147,7 +149,7 @@ int main() {
             
             // Ler todos os sensores de uma vez usando o módulo sensor_manager
             sensor_data_t sensor_data;
-            sensor_manager_update(&sensor_data);
+            sensor_manager_update(&sensor_data, dryer_data.heater_on);
             
             // Processar dados dos sensores e atualizar dryer_data
             process_sensor_data(&sensor_data, &dryer_data);
@@ -184,11 +186,12 @@ int main() {
             
             // Log no serial com status de segurança e PWM
             const char* safety_status = dryer_data.sensor_safe ? "SAFE" : "⚠️UNSAFE";
-            printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]\n",
+            const char* heater_status = dryer_data.heater_failure ? "[HEATER FAIL]" : "";
+            printf("Main: T:%.1f°C H:%.1f%% E:%.1fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s\n",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
                    dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,
-                   safety_status);
+                   safety_status, heater_status);
         }
         
         // Verificar botão de ajuste de temperatura usando módulo button_controller

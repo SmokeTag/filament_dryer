@@ -1,4 +1,5 @@
 #include "display_interface.h"
+#include "hardware_control.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -139,9 +140,12 @@ void update_energy_display(float current, float total, float prev_current, float
 }
 
 // Atualiza apenas o status com PWM
-void update_status_display(bool heater_on, float pwm_percent, 
-                          bool prev_heater, float prev_pwm) {
+void update_status_display(float pwm_percent, float prev_pwm) {
     char buffer[32];
+    
+    // Derivar estado do heater do PWM
+    bool heater_on = hardware_control_heater_is_active(pwm_percent);
+    bool prev_heater = hardware_control_heater_is_active(prev_pwm);
     
     // Status do heater
     if (heater_on != prev_heater) {
@@ -278,8 +282,7 @@ void update_interface_smart(dryer_data_t *data, dryer_data_t *prev_data) {
                          prev_data->energy_current, prev_data->energy_total,
                          data->acs712_disconnected, prev_data->acs712_disconnected);
     
-    update_status_display(data->heater_on, data->pwm_percent,
-                         prev_data->heater_on, prev_data->pwm_percent);
+    update_status_display(data->pwm_percent, prev_data->pwm_percent);
     
     update_uptime_display(data->uptime, prev_data->uptime);
     

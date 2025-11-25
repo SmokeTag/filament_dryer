@@ -40,6 +40,7 @@
     "files.associations": {
         "stdbool.h": "c",
         "stdint.h": "c",
-        "button_controller.h": "c"
+        "button_controller.h": "c",
+        "time.h": "c"
     }
 }

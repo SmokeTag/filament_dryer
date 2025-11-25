@@ -12,7 +12,6 @@ typedef struct {
     float temp_target;      // Temperatura alvo (°C)
     float energy_total;     // Consumo de energia total (Wh)
     float energy_current;   // Consumo atual (W)
-    bool heater_on;         // Status do aquecedor
     bool sensor_safe;       // Status crítico do sensor DHT22
     uint32_t uptime;        // Tempo ligado (segundos)
     float pwm_percent;      // Potência PWM aplicada (0-100%)
@@ -37,8 +36,7 @@ void update_energy_display(float current, float total, float prev_current, float
 void update_statistics_display(uint32_t sensor_failures, uint32_t unsafe_events,
                               uint32_t prev_failures, uint32_t prev_unsafe,
                               bool heater_failure, bool prev_heater_failure);
-void update_status_display(bool heater_on, float pwm_percent, 
-                          bool prev_heater, float prev_pwm);
+void update_status_display(float pwm_percent, float prev_pwm);
 void update_uptime_display(uint32_t uptime, uint32_t prev_uptime);
 void display_critical_error_screen(void);
 

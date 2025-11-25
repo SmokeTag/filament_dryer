@@ -44,7 +44,7 @@ add_executable(filament_dryer
     src/controls/button_controller.c
     src/sensors/sensor_manager.c
     src/controls/hardware_control.c
-    src/controls/temperature_control.c
+    src/controls/pid_controller.c
     )
 
 # Add include directories for headers

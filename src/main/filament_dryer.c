@@ -1,5 +1,3 @@
-// TODO: Think about heater on logic (possible good idea to define if heater >= 75% to make sure transistor is fully on)
-// TODO: Implementar controle de temperatura baseado em PID
 // TODO: HARDWARE: Adicionar switch com saida do sensor ACS712 no pin 1, pin 2 no GPIO26 e pin 3 no GND
 // TODO: display adicionar uptime ao display e remover flickering via atualização inteligente
 
@@ -13,6 +11,7 @@
  * - Sensor DHT22 (temperatura e umidade)
  * - Sensor de consumo de energia
  * - Hotend + dissipador + ventoinha
+ * - Controle PID de temperatura com PWM
  * 
  * Autor: Andre
  * Data: Novembro 2025
@@ -24,7 +23,7 @@
 #include "button_controller.h"
 #include "sensor_manager.h"
 #include "hardware_control.h"
-#include "temperature_control.h"
+#include "pid_controller.h"
 #include "logger.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -35,6 +34,15 @@
 // Configurações principais do sistema
 #define UPDATE_INTERVAL_MS 5000        // Atualiza a cada 5 segundos
 #define TEMP_TARGET_DEFAULT 45         // Temperatura alvo padrão (°C)
+#define TEMP_OVERSHOOT_LIMIT 3.0f      // Limite de overshoot crítico (°C)
+
+// Configurações do PID (valores iniciais - podem ser ajustados)
+#define PID_KP 10.0f                   // Ganho proporcional
+#define PID_KI 0.5f                    // Ganho integral
+#define PID_KD 1.0f                    // Ganho derivativo
+#define PID_OUTPUT_MIN 0.0f            // PWM mínimo (0%)
+#define PID_OUTPUT_MAX 100.0f          // PWM máximo (100%)
+#define PID_SAMPLE_TIME_MS 1000        // Calcular PID a cada 1 segundo
 
 // Inicialização de todos os módulos do sistema
 void system_init(void) {
@@ -90,6 +98,12 @@ int main() {
     // Inicializar todos os módulos do sistema
     system_init();
     
+    // Inicializar controlador PID
+    pid_controller_t pid;
+    pid_init(&pid, PID_KP, PID_KI, PID_KD, PID_OUTPUT_MIN, PID_OUTPUT_MAX, PID_SAMPLE_TIME_MS);
+    pid_set_setpoint(&pid, TEMP_TARGET_DEFAULT);
+    LOGI(TAG, "PID initialized (Kp=%.1f, Ki=%.2f, Kd=%.1f)", PID_KP, PID_KI, PID_KD);
+    
     // Inicializar dados da estufa
     dryer_data_t dryer_data = {
         .temperature = 10.0,
@@ -97,7 +111,6 @@ int main() {
         .temp_target = TEMP_TARGET_DEFAULT,
         .energy_total = 0.0,
         .energy_current = 0.0,
-        .heater_on = false,
         .sensor_safe = true,  // Assume sensor OK no início
         .uptime = 0,
         .pwm_percent = 0.0,
@@ -153,7 +166,8 @@ int main() {
             
             // Ler todos os sensores de uma vez usando o módulo sensor_manager
             sensor_data_t sensor_data;
-            sensor_manager_update(&sensor_data, dryer_data.heater_on);
+            bool heater_active = hardware_control_heater_is_active(dryer_data.pwm_percent);
+            sensor_manager_update(&sensor_data, heater_active);
             
             // Processar dados dos sensores e atualizar dryer_data
             process_sensor_data(&sensor_data, &dryer_data);
@@ -161,8 +175,30 @@ int main() {
             // Acumular energia total (aproximação simples)
             dryer_data.energy_total += (dryer_data.energy_current * UPDATE_INTERVAL_MS) / 3600000.0; // Wh
             
-            // Controle automático de temperatura usando módulo temperature_control
-            temperature_control_update(&dryer_data, dryer_data.sensor_safe);
+            // PROTEÇÃO CRÍTICA: Verificar overshoot perigoso
+            bool overshoot_critical = false;
+            if (dryer_data.temperature > (dryer_data.temp_target + TEMP_OVERSHOOT_LIMIT)) {
+                overshoot_critical = true;
+                LOGE(TAG, "CRITICAL OVERSHOOT: Temp %.1f°C > Target %.0f°C + %.0f°C!",
+                     dryer_data.temperature, dryer_data.temp_target, TEMP_OVERSHOOT_LIMIT);
+            }
+            
+            // Calcular saída do PID (desabilitar se overshoot crítico)
+            float pid_output = 0.0f;
+            if (dryer_data.sensor_safe && !overshoot_critical) {
+                pid_output = pid_compute(&pid, dryer_data.temperature);
+            } else {
+                // Sensor não seguro OU overshoot crítico: resetar PID e forçar PWM = 0
+                pid_reset(&pid);
+                pid_output = 0.0f;
+                
+                if (overshoot_critical) {
+                    LOGW(TAG, "Heater disabled due to critical overshoot");
+                }
+            }
+            
+            // Atualizar PWM com saída do PID
+            hardware_control_update_pwm(&dryer_data, dryer_data.sensor_safe, pid_output);
             
             // Gerenciamento de tela baseado no status do sensor
             if (!dryer_data.sensor_safe && !error_screen_displayed) {
@@ -176,7 +212,6 @@ int main() {
                 error_screen_displayed = false;
                 // Forçar atualização completa na próxima iteração
                 prev_data.temp_target = 39;
-                prev_data.heater_on = !dryer_data.heater_on;
                 prev_data.pwm_percent = -1;
                 prev_data.total_sensor_failures = -1;
                 prev_data.total_unsafe_events = -1;
@@ -194,24 +229,28 @@ int main() {
             LOGI(TAG, "T:%.1f°C H:%.1f%% E:%.2fW Target:%.0f°C Heater:%s(%.0f%%) [%s]%s",
                    dryer_data.temperature, dryer_data.humidity, dryer_data.energy_current,
                    dryer_data.temp_target,
-                   dryer_data.heater_on ? "ON" : "OFF", dryer_data.pwm_percent,
+                   heater_active ? "ON" : "OFF", dryer_data.pwm_percent,
                    safety_status, heater_status);
         }
         
         // Verificar botão de ajuste de temperatura usando módulo button_controller
         bool temp_changed = button_controller_update(&dryer_data);
         
-        // Se temperatura alvo mudou, atualizar display imediatamente
+        // Se temperatura alvo mudou, atualizar display imediatamente E atualizar PID
         if (temp_changed) {
             LOGI(TAG, "Target temperature changed to %.0f°C", dryer_data.temp_target);
             
+            // Atualizar setpoint do PID
+            pid_set_setpoint(&pid, dryer_data.temp_target);
+            pid_reset(&pid);
+
             // Atualizar display imediatamente (sem esperar os 5s)
             update_temperature_display(dryer_data.temperature, dryer_data.temp_target,
                                         prev_data.temperature, prev_data.temp_target);
         }
         
         // LED de status usando módulo hardware_control
-        hardware_control_led_status(dryer_data.sensor_safe, dryer_data.heater_on);
+        hardware_control_led_status(dryer_data.sensor_safe, dryer_data.pwm_percent);
         
         sleep_ms(100);  // Loop principal a cada 100ms
     }

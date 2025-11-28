@@ -36,10 +36,10 @@
 #define TEMP_TARGET_DEFAULT 45         // Temperatura alvo padrão (°C)
 #define TEMP_OVERSHOOT_LIMIT 3.0f      // Limite de overshoot crítico (°C)
 
-// Configurações do PID (valores iniciais - podem ser ajustados)
-#define PID_KP 10.0f                   // Ganho proporcional
-#define PID_KI 0.5f                    // Ganho integral
-#define PID_KD 1.0f                    // Ganho derivativo
+// Configurações do PID
+#define PID_KP 32.0f                   // Ganho proporcional
+#define PID_KI 0.05f                   // Ganho integral
+#define PID_KD 5f                      // Ganho derivativo
 #define PID_OUTPUT_MIN 0.0f            // PWM mínimo (0%)
 #define PID_OUTPUT_MAX 100.0f          // PWM máximo (100%)
 #define PID_SAMPLE_TIME_MS 1000        // Calcular PID a cada 1 segundo
